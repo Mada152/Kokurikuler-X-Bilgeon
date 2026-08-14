@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  POLIKLINIK SEKOLAH — Aplikasi pencatatan kunjungan UKS/Poliklinik Sekolah
+  ============================================================================
+  CARA PAKAI:
+  1. Buat project baru di https://supabase.com
+  2. Buka menu "SQL Editor" di dashboard Supabase, tempel & jalankan (RUN)
+     seluruh skrip SQL di bawah ini.
+  3. Buka menu "Project Settings" > "API", salin "Project URL" dan
+     "anon public key", lalu tempelkan ke variabel SUPABASE_URL dan
+     SUPABASE_ANON_KEY di dalam tag <script> pada file ini (cari komentar
+     "GANTI DI SINI").
+  4. Commit & push file ini sebagai index.html ke repository GitHub Anda,
+     lalu aktifkan GitHub Pages (Settings > Pages > Deploy from branch).
+
+  ============================================================================
+  SKRIP SQL — jalankan di Supabase SQL Editor sebelum menggunakan aplikasi
+  ============================================================================
+
+  -- 1. Tabel data kelas
+  create table kelas (
+    id          bigint generated always as identity primary key,
+    nama_kelas  text not null,
+    created_at  timestamptz not null default now()
+  );
+
+  -- 2. Tabel data siswa
+  create table siswa (
+    id          bigint generated always as identity primary key,
+    nama_siswa  text not null,
+    kelas_id    bigint references kelas(id) on delete set null,
+    created_at  timestamptz not null default now()
+  );
+
+  -- 3. Tabel rentang jam pelajaran (JP)
+  create table jam_pelajaran (
+    id           bigint generated always as identity primary key,
+    jp_ke        integer not null,
+    jam_mulai    time not null,
+    jam_selesai  time not null
+  );
+
+  -- 4. Tabel kunjungan poliklinik
+  create table kunjungan (
+    id           bigint generated always as identity primary key,
+    siswa_id     bigint references siswa(id) on delete cascade,
+    keluhan      text not null,
+    waktu_input  timestamptz not null default now(),
+    jp_ke        integer
+  );
+
+  -- Aktifkan Row Level Security lalu izinkan akses publik (anon key).
+  -- Cocok untuk pemakaian internal sekolah dengan link tidak disebarluaskan.
+  -- Jika perlu keamanan lebih ketat, ganti policy di bawah dengan aturan
+  -- yang mensyaratkan pengguna login (auth.uid()).
+  alter table kelas          enable row level security;
+  alter table siswa          enable row level security;
+  alter table jam_pelajaran  enable row level security;
+  alter table kunjungan      enable row level security;
+
+  create policy "akses_publik_kelas"         on kelas         for all using (true) with check (true);
+  create policy "akses_publik_siswa"         on siswa         for all using (true) with check (true);
+  create policy "akses_publik_jam_pelajaran" on jam_pelajaran for all using (true) with check (true);
+  create policy "akses_publik_kunjungan"     on kunjungan     for all using (true) with check (true);
+
+  -- (Opsional) Contoh data awal jam pelajaran, silakan sesuaikan lewat
+  -- tab "Kelola Admin" di aplikasi setelah berjalan.
+  -- insert into jam_pelajaran (jp_ke, jam_mulai, jam_selesai) values
+  --   (1,'07:00','07:40'), (2,'07:40','08:20'), (3,'08:20','09:00');
+  ============================================================================
+-->
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Poliklinik Sekolah</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230D6E6E'/%3E%3Crect x='10.5' y='5' width='3' height='14' rx='1.2' fill='white'/%3E%3Crect x='5' y='10.5' width='14' height='3' rx='1.2' fill='white'/%3E%3C/svg%3E" />
+
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<!-- Tailwind CSS (CDN) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          primary: { DEFAULT: '#0D6E6E', dark: '#0A5757', light: '#E6F4F1' },
+          accent:  { DEFAULT: '#E8603F', light: '#FCE7E2' },
+          ink:     '#16302B',
+          muted:   '#5F7A74',
+          canvas:  '#F6F8F7',
+          line:    '#E2E8E6'
+        },
+        fontFamily: {
+          display: ['"Space Grotesk"', 'sans-serif'],
+          sans:    ['"Inter"', 'sans-serif'],
+          mono:    ['"JetBrains Mono"', 'monospace']
+        }
+      }
+    }
+  };
+</script>
+
+<!-- Supabase JS Client v2 (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<!-- Chart.js (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+
+<style>
+  html { scroll-behavior: smooth; }
+  body { background-color: #F6F8F7; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #C9D8D4; border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #A9BFB9; }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; animation: fadein .25s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: translateY(0);} }
+
+  .nav-item.active { background: rgba(255,255,255,0.12); color: #fff; }
+  .nav-item.active .nav-bar { transform: scaleY(1); }
+  .nav-bar { transform: scaleY(0); transition: transform .18s ease; }
+
+  input:focus, select:focus, textarea:focus, button:focus-visible {
+    outline: 2px solid #0D6E6E;
+    outline-offset: 1px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, #EEF3F1 25%, #E4ECE9 37%, #EEF3F1 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+  }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+</style>
+</head>
+
+<body class="font-sans text-ink antialiased">
+
+<!-- ============================= TOAST ============================= -->
+<div id="toast-wrap" class="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 items-end pointer-events-none"></div>
+
+<!-- ============================= LAYOUT ============================= -->
+<div class="min-h-screen flex">
+
+  <!-- Sidebar overlay (mobile) -->
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/40 z-30 hidden lg:hidden"></div>
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="fixed lg:sticky top-0 z-40 h-screen w-64 shrink-0 bg-[#0B3B3B] text-white flex flex-col -translate-x-full lg:translate-x-0 transition-transform duration-200">
+    <div class="flex items-center gap-3 px-5 py-6 border-b border-white/10">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+        <rect width="24" height="24" rx="6" fill="#E8603F"/>
+        <rect x="10.5" y="5" width="3" height="14" rx="1.2" fill="white"/>
+        <rect x="5" y="10.5" width="14" height="3" rx="1.2" fill="white"/>
+      </svg>
+      <div>
+        <p class="font-display font-semibold text-[15px] leading-tight">Poliklinik</p>
+        <p class="font-display font-semibold text-[15px] leading-tight">Sekolah</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 px-3 py-5 space-y-1">
+      <button data-tab="dashboard" class="nav-item active w-full flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-lg text-sm font-medium text-white/75 hover:text-white hover:bg-white/10 transition relative">
+        <span class="nav-bar absolute left-0 top-1.5 bottom-1.5 w-1 rounded-full bg-accent"></span>
+        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M8 17V10m5 7V6m5 11v-4"/></svg>
+        Dashboard
+      </button>
+      <button data-tab="input" class="nav-item w-full flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-lg text-sm font-medium text-white/75 hover:text-white hover:bg-white/10 transition relative">
+        <span class="nav-bar absolute left-0 top-1.5 bottom-1.5 w-1 rounded-full bg-accent"></span>
+        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Input Kunjungan
+      </button>
+      <button data-tab="admin" class="nav-item w-full flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-lg text-sm font-medium text-white/75 hover:text-white hover:bg-white/10 transition relative">
+        <span class="nav-bar absolute left-0 top-1.5 bottom-1.5 w-1 rounded-full bg-accent"></span>
+        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.3 3.3a2 2 0 0 1 3.4 0l.3.6a2 2 0 0 0 2.2 1l.6-.2a2 2 0 0 1 2.6 1.9v.6a2 2 0 0 0 1.2 1.9l.6.3a2 2 0 0 1 0 3.4l-.6.3a2 2 0 0 0-1.2 1.9v.6a2 2 0 0 1-2.6 1.9l-.6-.2a2 2 0 0 0-2.2 1l-.3.6a2 2 0 0 1-3.4 0l-.3-.6a2 2 0 0 0-2.2-1l-.6.2a2 2 0 0 1-2.6-1.9v-.6a2 2 0 0 0-1.2-1.9l-.6-.3a2 2 0 0 1 0-3.4l.6-.3a2 2 0 0 0 1.2-1.9v-.6a2 2 0 0 1 2.6-1.9l.6.2a2 2 0 0 0 2.2-1l.3-.6Z"/><circle cx="12" cy="12" r="3"/></svg>
+        Kelola Admin
+      </button>
+    </nav>
+
+    <div class="px-5 py-4 border-t border-white/10 text-[11px] text-white/50 font-mono">
+      <span id="clock-display">--:--:--</span>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="flex-1 min-w-0 flex flex-col">
+    <!-- Topbar -->
+    <header class="sticky top-0 z-20 bg-white/85 backdrop-blur border-b border-line">
+      <div class="flex items-center justify-between px-4 sm:px-8 py-4">
+        <div class="flex items-center gap-3">
+          <button id="hamburger" class="lg:hidden p-2 -ml-2 rounded-lg hover:bg-canvas">
+            <svg class="w-6 h-6 text-ink" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <div>
+            <h1 id="page-title" class="font-display font-semibold text-xl text-ink">Dashboard Kunjungan</h1>
+            <p id="page-sub" class="text-sm text-muted">Ringkasan aktivitas poliklinik sekolah</p>
+          </div>
+        </div>
+        <div id="today-badge" class="hidden sm:flex items-center gap-2 bg-primary-light text-primary-dark text-xs font-medium px-3 py-1.5 rounded-full font-mono"></div>
+      </div>
+    </header>
+
+    <main class="flex-1 px-4 sm:px-8 py-6 max-w-6xl w-full mx-auto">
+
+      <!-- ======================= TAB: DASHBOARD ======================= -->
+      <section id="tab-dashboard" class="tab-panel active space-y-6">
+
+        <!-- Filter -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button data-filter="today" class="filter-btn px-4 py-2 rounded-full text-sm font-medium border border-line bg-white text-ink hover:border-primary transition">Hari Ini</button>
+          <button data-filter="week" class="filter-btn px-4 py-2 rounded-full text-sm font-medium border border-line bg-white text-ink hover:border-primary transition">Minggu Ini</button>
+          <button data-filter="month" class="filter-btn px-4 py-2 rounded-full text-sm font-medium border border-line bg-white text-ink hover:border-primary transition">Bulan Ini</button>
+        </div>
+
+        <!-- Stat cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="bg-white border border-line rounded-2xl p-5">
+            <p class="text-xs font-medium text-muted uppercase tracking-wide">Total Kunjungan</p>
+            <p id="stat-total" class="font-display text-3xl font-semibold text-ink mt-1">0</p>
+          </div>
+          <div class="bg-white border border-line rounded-2xl p-5">
+            <p class="text-xs font-medium text-muted uppercase tracking-wide">JP Terpadat</p>
+            <p id="stat-jp" class="font-display text-3xl font-semibold text-ink mt-1">–</p>
+          </div>
+          <div class="bg-white border border-line rounded-2xl p-5">
+            <p class="text-xs font-medium text-muted uppercase tracking-wide">Kelas Terbanyak</p>
+            <p id="stat-kelas" class="font-display text-3xl font-semibold text-ink mt-1">–</p>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="bg-white border border-line rounded-2xl p-5 sm:p-6">
+          <h2 class="font-display font-semibold text-base text-ink mb-4">Jumlah Kunjungan per Jam Pelajaran</h2>
+          <div class="h-72">
+            <canvas id="chart-jp"></canvas>
+          </div>
+        </div>
+
+        <!-- History table -->
+        <div class="bg-white border border-line rounded-2xl overflow-hidden">
+          <div class="px-5 sm:px-6 py-4 border-b border-line">
+            <h2 class="font-display font-semibold text-base text-ink">Riwayat Kunjungan</h2>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-xs text-muted uppercase tracking-wide border-b border-line">
+                  <th class="px-5 sm:px-6 py-3 font-medium">Nama Siswa</th>
+                  <th class="px-5 py-3 font-medium">Kelas</th>
+                  <th class="px-5 py-3 font-medium">Keluhan</th>
+                  <th class="px-5 py-3 font-medium">Waktu Input</th>
+                  <th class="px-5 sm:pr-6 py-3 font-medium text-center">JP</th>
+                </tr>
+              </thead>
+              <tbody id="history-tbody" class="divide-y divide-line"></tbody>
+            </table>
+          </div>
+          <div id="history-empty" class="hidden px-6 py-14 text-center">
+            <p class="text-muted text-sm">Belum ada kunjungan pada rentang waktu ini.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= TAB: INPUT ======================= -->
+      <section id="tab-input" class="tab-panel space-y-6">
+        <div class="bg-white border border-line rounded-2xl p-5 sm:p-8 max-w-xl">
+          <h2 class="font-display font-semibold text-lg text-ink mb-1">Catat Kunjungan Baru</h2>
+          <p class="text-sm text-muted mb-6">Jam pelajaran akan ditentukan otomatis berdasarkan waktu saat ini.</p>
+
+          <form id="form-kunjungan" class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-ink mb-1.5">Kelas</label>
+              <select id="input-kelas" required class="w-full border border-line rounded-lg px-3.5 py-2.5 text-sm bg-canvas focus:bg-white transition">
+                <option value="">Pilih kelas…</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-ink mb-1.5">Nama Siswa</label>
+              <select id="input-siswa" required disabled class="w-full border border-line rounded-lg px-3.5 py-2.5 text-sm bg-canvas focus:bg-white transition disabled:opacity-50">
+                <option value="">Pilih kelas terlebih dahulu…</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-ink mb-1.5">Keluhan</label>
+              <textarea id="input-keluhan" required rows="4" placeholder="Contoh: Demam, pusing, sejak jam pelajaran ke-2…" class="w-full border border-line rounded-lg px-3.5 py-2.5 text-sm bg-canvas focus:bg-white transition resize-none"></textarea>
+            </div>
+            <div class="flex items-center justify-between bg-primary-light rounded-lg px-4 py-3">
+              <span class="text-xs text-primary-dark font-medium">Waktu tercatat otomatis</span>
+              <span id="input-clock" class="font-mono text-sm text-primary-dark font-medium">--:--:--</span>
+            </div>
+            <button type="submit" id="btn-submit-kunjungan" class="w-full bg-primary hover:bg-primary-dark text-white font-medium text-sm rounded-lg py-3 transition flex items-center justify-center gap-2">
+              Simpan Kunjungan
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ======================= TAB: ADMIN ======================= -->
+      <section id="tab-admin" class="tab-panel space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          <!-- Kelola Kelas -->
+          <div class="bg-white border border-line rounded-2xl p-5 sm:p-6">
+            <h2 class="font-display font-semibold text-base text-ink mb-4">Tambah Kelas</h2>
+            <form id="form-kelas" class="flex gap-2 mb-5">
+              <input id="input-nama-kelas" required type="text" placeholder="Contoh: 7A" class="flex-1 border border-line rounded-lg px-3.5 py-2.5 text-sm bg-canvas focus:bg-white transition" />
+              <button type="submit" class="bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded-lg px-4 transition">Tambah</button>
+            </form>
+            <ul id="list-kelas" class="divide-y divide-line max-h-64 overflow-y-auto"></ul>
+            <p id="list-kelas-empty" class="hidden text-sm text-muted py-4 text-center">Belum ada data kelas.</p>
+          </div>
+
+          <!-- Kelola Siswa -->
+          <div class="bg-white border border-line rounded-2xl p-5 sm:p-6">
+            <h2 class="font-display font-semibold text-base text-ink mb-4">Tambah Siswa</h2>
+            <form id="form-siswa" class="space-y-2 mb-5">
+              <input id="input-nama-siswa" required type="text" placeholder="Nama siswa" class="w-full border border-line rounded-lg px-3.5 py-2.5 text-sm bg-canvas focus:bg-white transition" />
+              <div class="flex gap-2">
+                <select id="input-siswa-kelas" required class="flex-1 border border-line rounded-lg px-3.5 py-2.5 text-sm bg-canvas focus:bg-white transition">
+                  <option value="">Pilih kelas…</option>
+                </select>
+                <button type="submit" class="bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded-lg px-4 transition">Tambah</button>
+              </div>
+            </form>
+            <ul id="list-siswa" class="divide-y divide-line max-h-64 overflow-y-auto"></ul>
+            <p id="list-siswa-empty" class="hidden text-sm text-muted py-4 text-center">Belum ada data siswa.</p>
+          </div>
+
+          <!-- Jam Pelajaran -->
+          <div class="bg-white border border-line rounded-2xl p-5 sm:p-6 lg:col-span-2">
+            <h2 class="font-display font-semibold text-base text-ink mb-4">Pengaturan Jam Pelajaran</h2>
+            <form id="form-jp" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+              <input id="input-jp-ke" required type="number" min="1" placeholder="JP ke-" class="border border-line rounded-lg px-3.5 py-2.5 text-sm bg-canvas focus:bg-white transition" />
+              <input id="input-jp-mulai" required type="time" class="border border-line rounded-lg px-3.5 py-2.5 text-sm bg-canvas focus:bg-white transition" />
+              <input id="input-jp-selesai" required type="time" class="border border-line rounded-lg px-3.5 py-2.5 text-sm bg-canvas focus:bg-white transition" />
+              <button type="submit" class="bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded-lg px-4 py-2.5 transition">Tambah JP</button>
+            </form>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="text-left text-xs text-muted uppercase tracking-wide border-b border-line">
+                    <th class="py-2.5 font-medium">JP ke-</th>
+                    <th class="py-2.5 font-medium">Jam Mulai</th>
+                    <th class="py-2.5 font-medium">Jam Selesai</th>
+                    <th class="py-2.5 font-medium text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="list-jp" class="divide-y divide-line"></tbody>
+              </table>
+            </div>
+            <p id="list-jp-empty" class="hidden text-sm text-muted py-6 text-center">Belum ada pengaturan jam pelajaran.</p>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script>
+/* ==========================================================================
+   1. KONFIGURASI SUPABASE — GANTI DI SINI
+   ========================================================================== */
+const SUPABASE_URL = "https://xxxxxxxxxxxxxxxxxxxx.supabase.co"; // <-- GANTI dengan Project URL Supabase Anda
+const SUPABASE_ANON_KEY = "eyJxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // <-- GANTI dengan anon public key Supabase Anda
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ==========================================================================
+   2. STATE
+   ========================================================================== */
+const state = {
+  kelas: [],
+  siswa: [],
+  jamPelajaran: [],
+  kunjungan: [],
+  activeFilter: 'today',
+  chart: null
+};
+
+/* ==========================================================================
+   3. UTIL
+   ========================================================================== */
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function timeNowString() {
+  const d = new Date();
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function formatWaktu(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function showToast(message, type = 'success') {
+  const wrap = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  const isErr = type === 'error';
+  el.className = `pointer-events-auto max-w-xs w-full rounded-xl shadow-lg border px-4 py-3 text-sm font-medium flex items-start gap-2 transition-all ${isErr ? 'bg-white border-accent text-accent' : 'bg-white border-primary text-primary-dark'}`;
+  el.innerHTML = `
+    <svg class="w-5 h-5 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      ${isErr ? '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v5M12 16h.01"/>' : '<path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/>'}
+    </svg>
+    <span>${message}</span>`;
+  wrap.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(6px)';
+    setTimeout(() => el.remove(), 200);
+  }, 3200);
+}
+
+function getRange(filter) {
+  const now = new Date();
+  let start, end;
+  if (filter === 'today') {
+    start = new Date(now); start.setHours(0, 0, 0, 0);
+    end = new Date(now); end.setHours(23, 59, 59, 999);
+  } else if (filter === 'week') {
+    const day = now.getDay() === 0 ? 7 : now.getDay(); // Senin=1 ... Minggu=7
+    start = new Date(now); start.setDate(now.getDate() - (day - 1)); start.setHours(0, 0, 0, 0);
+    end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23, 59, 59, 999);
+  } else { // month
+    start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  }
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+// Menentukan JP berdasarkan waktu saat ini (format "HH:MM:SS")
+function determineJP(timeStr, jpList) {
+  const match = jpList.find(jp => timeStr >= jp.jam_mulai && timeStr <= jp.jam_selesai);
+  return match ? match.jp_ke : null;
+}
+
+/* ==========================================================================
+   4. FETCH DATA
+   ========================================================================== */
+async function fetchKelas() {
+  const { data, error } = await db.from('kelas').select('*').order('nama_kelas', { ascending: true });
+  if (error) { showToast('Gagal memuat data kelas: ' + error.message, 'error'); return; }
+  state.kelas = data || [];
+}
+
+async function fetchSiswa() {
+  const { data, error } = await db.from('siswa').select('*, kelas:kelas_id(id, nama_kelas)').order('nama_siswa', { ascending: true });
+  if (error) { showToast('Gagal memuat data siswa: ' + error.message, 'error'); return; }
+  state.siswa = data || [];
+}
+
+async function fetchJamPelajaran() {
+  const { data, error } = await db.from('jam_pelajaran').select('*').order('jp_ke', { ascending: true });
+  if (error) { showToast('Gagal memuat jam pelajaran: ' + error.message, 'error'); return; }
+  state.jamPelajaran = data || [];
+}
+
+async function fetchKunjungan(filter) {
+  const { start, end } = getRange(filter);
+  const { data, error } = await db
+    .from('kunjungan')
+    .select('id, keluhan, waktu_input, jp_ke, siswa:siswa_id(nama_siswa, kelas:kelas_id(nama_kelas))')
+    .gte('waktu_input', start)
+    .lte('waktu_input', end)
+    .order('waktu_input', { ascending: false });
+  if (error) { showToast('Gagal memuat riwayat kunjungan: ' + error.message, 'error'); return; }
+  state.kunjungan = data || [];
+}
+
+/* ==========================================================================
+   5. RENDER — DASHBOARD
+   ========================================================================== */
+function renderDashboard() {
+  const rows = state.kunjungan;
+
+  // Stat: total
+  document.getElementById('stat-total').textContent = rows.length;
+
+  // Stat: JP terpadat
+  const jpCount = {};
+  rows.forEach(r => {
+    const key = r.jp_ke ?? 'Luar JP';
+    jpCount[key] = (jpCount[key] || 0) + 1;
+  });
+  const jpEntries = Object.entries(jpCount).sort((a, b) => b[1] - a[1]);
+  document.getElementById('stat-jp').textContent = jpEntries.length ? (jpEntries[0][0] === 'Luar JP' ? 'Luar JP' : 'JP ' + jpEntries[0][0]) : '–';
+
+  // Stat: kelas terbanyak
+  const kelasCount = {};
+  rows.forEach(r => {
+    const nama = r.siswa?.kelas?.nama_kelas || 'Tidak diketahui';
+    kelasCount[nama] = (kelasCount[nama] || 0) + 1;
+  });
+  const kelasEntries = Object.entries(kelasCount).sort((a, b) => b[1] - a[1]);
+  document.getElementById('stat-kelas').textContent = kelasEntries.length ? kelasEntries[0][0] : '–';
+
+  renderChart(jpCount);
+  renderHistoryTable(rows);
+}
+
+function renderChart(jpCount) {
+  const jpNumbers = state.jamPelajaran.map(j => j.jp_ke);
+  const labels = jpNumbers.map(n => 'JP ' + n);
+  if (jpCount['Luar JP']) labels.push('Luar JP');
+
+  const dataValues = jpNumbers.map(n => jpCount[n] || 0);
+  if (jpCount['Luar JP']) dataValues.push(jpCount['Luar JP']);
+
+  const ctx = document.getElementById('chart-jp').getContext('2d');
+  if (state.chart) state.chart.destroy();
+  state.chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels.length ? labels : ['Tidak ada data'],
+      datasets: [{
+        label: 'Jumlah Kunjungan',
+        data: dataValues.length ? dataValues : [0],
+        backgroundColor: '#0D6E6E',
+        borderRadius: 6,
+        maxBarThickness: 46
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#EEF2F0' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderHistoryTable(rows) {
+  const tbody = document.getElementById('history-tbody');
+  const empty = document.getElementById('history-empty');
+  tbody.innerHTML = '';
+
+  if (!rows.length) {
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-canvas/60 transition';
+    tr.innerHTML = `
+      <td class="px-5 sm:px-6 py-3 font-medium text-ink">${r.siswa?.nama_siswa ?? '—'}</td>
+      <td class="px-5 py-3 text-muted">${r.siswa?.kelas?.nama_kelas ?? '—'}</td>
+      <td class="px-5 py-3 text-ink max-w-xs truncate" title="${(r.keluhan || '').replace(/"/g, '&quot;')}">${r.keluhan ?? '—'}</td>
+      <td class="px-5 py-3 text-muted font-mono text-xs">${formatWaktu(r.waktu_input)}</td>
+      <td class="px-5 sm:pr-6 py-3 text-center">
+        <span class="inline-flex items-center justify-center min-w-[2.25rem] px-2 py-1 rounded-full text-xs font-medium ${r.jp_ke ? 'bg-primary-light text-primary-dark' : 'bg-accent-light text-accent'}">
+          ${r.jp_ke ? r.jp_ke : 'Luar JP'}
+        </span>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ==========================================================================
+   6. RENDER — INPUT TAB
+   ========================================================================== */
+function renderInputKelasDropdown() {
+  const sel = document.getElementById('input-kelas');
+  sel.innerHTML = '<option value="">Pilih kelas…</option>' +
+    state.kelas.map(k => `<option value="${k.id}">${k.nama_kelas}</option>`).join('');
+}
+
+function renderInputSiswaDropdown(kelasId) {
+  const sel = document.getElementById('input-siswa');
+  const filtered = state.siswa.filter(s => String(s.kelas_id) === String(kelasId));
+  if (!kelasId) {
+    sel.innerHTML = '<option value="">Pilih kelas terlebih dahulu…</option>';
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  sel.innerHTML = (filtered.length ? '<option value="">Pilih siswa…</option>' : '<option value="">Tidak ada siswa di kelas ini</option>') +
+    filtered.map(s => `<option value="${s.id}">${s.nama_siswa}</option>`).join('');
+}
+
+/* ==========================================================================
+   7. RENDER — ADMIN TAB
+   ========================================================================== */
+function renderAdminKelasDropdown() {
+  const sel = document.getElementById('input-siswa-kelas');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Pilih kelas…</option>' +
+    state.kelas.map(k => `<option value="${k.id}">${k.nama_kelas}</option>`).join('');
+  if (current) sel.value = current;
+}
+
+function renderListKelas() {
+  const ul = document.getElementById('list-kelas');
+  const empty = document.getElementById('list-kelas-empty');
+  ul.innerHTML = '';
+  if (!state.kelas.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  state.kelas.forEach(k => {
+    const li = document.createElement('li');
+    li.className = 'flex items-center justify-between py-2.5';
+    li.innerHTML = `
+      <span class="text-sm text-ink flex items-center gap-2">
+        <svg class="w-3.5 h-3.5 text-primary shrink-0" viewBox="0 0 24 24" fill="currentColor"><rect x="10.5" y="5" width="3" height="14" rx="1"/><rect x="5" y="10.5" width="14" height="3" rx="1"/></svg>
+        ${k.nama_kelas}
+      </span>
+      <button data-del-kelas="${k.id}" class="text-xs text-muted hover:text-accent transition">Hapus</button>`;
+    ul.appendChild(li);
+  });
+}
+
+function renderListSiswa() {
+  const ul = document.getElementById('list-siswa');
+  const empty = document.getElementById('list-siswa-empty');
+  ul.innerHTML = '';
+  if (!state.siswa.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  state.siswa.forEach(s => {
+    const li = document.createElement('li');
+    li.className = 'flex items-center justify-between py-2.5';
+    li.innerHTML = `
+      <span class="text-sm text-ink">
+        ${s.nama_siswa}
+        <span class="text-xs text-muted ml-1">· ${s.kelas?.nama_kelas ?? 'Tanpa kelas'}</span>
+      </span>
+      <button data-del-siswa="${s.id}" class="text-xs text-muted hover:text-accent transition">Hapus</button>`;
+    ul.appendChild(li);
+  });
+}
+
+function renderListJP() {
+  const tbody = document.getElementById('list-jp');
+  const empty = document.getElementById('list-jp-empty');
+  tbody.innerHTML = '';
+  if (!state.jamPelajaran.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  state.jamPelajaran.forEach(jp => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="py-2.5 font-medium text-ink">JP ${jp.jp_ke}</td>
+      <td class="py-2.5 font-mono text-muted">${jp.jam_mulai}</td>
+      <td class="py-2.5 font-mono text-muted">${jp.jam_selesai}</td>
+      <td class="py-2.5 text-right"><button data-del-jp="${jp.id}" class="text-xs text-muted hover:text-accent transition">Hapus</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderAdmin() {
+  renderAdminKelasDropdown();
+  renderListKelas();
+  renderListSiswa();
+  renderListJP();
+}
+
+/* ==========================================================================
+   8. ACTIONS
+   ========================================================================== */
+async function loadAllAndRender() {
+  await Promise.all([fetchKelas(), fetchSiswa(), fetchJamPelajaran()]);
+  await fetchKunjungan(state.activeFilter);
+  renderDashboard();
+  renderInputKelasDropdown();
+  renderAdmin();
+}
+
+document.getElementById('form-kunjungan').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const siswaId = document.getElementById('input-siswa').value;
+  const keluhan = document.getElementById('input-keluhan').value.trim();
+  if (!siswaId || !keluhan) { showToast('Lengkapi kelas, siswa, dan keluhan.', 'error'); return; }
+
+  const btn = document.getElementById('btn-submit-kunjungan');
+  btn.disabled = true;
+  btn.textContent = 'Menyimpan…';
+
+  const currentTime = timeNowString();
+  const jpKe = determineJP(currentTime, state.jamPelajaran);
+
+  const { error } = await db.from('kunjungan').insert({
+    siswa_id: siswaId,
+    keluhan: keluhan,
+    waktu_input: new Date().toISOString(),
+    jp_ke: jpKe
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'Simpan Kunjungan';
+
+  if (error) { showToast('Gagal menyimpan kunjungan: ' + error.message, 'error'); return; }
+
+  showToast(jpKe ? `Kunjungan tersimpan pada JP ${jpKe}.` : 'Kunjungan tersimpan (di luar jam pelajaran).');
+  document.getElementById('form-kunjungan').reset();
+  renderInputSiswaDropdown('');
+  await fetchKunjungan(state.activeFilter);
+  renderDashboard();
+});
+
+document.getElementById('input-kelas').addEventListener('change', (e) => {
+  renderInputSiswaDropdown(e.target.value);
+});
+
+document.getElementById('form-kelas').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('input-nama-kelas');
+  const nama = input.value.trim();
+  if (!nama) return;
+  const { error } = await db.from('kelas').insert({ nama_kelas: nama });
+  if (error) { showToast('Gagal menambah kelas: ' + error.message, 'error'); return; }
+  showToast('Kelas berhasil ditambahkan.');
+  input.value = '';
+  await fetchKelas();
+  renderInputKelasDropdown();
+  renderAdmin();
+});
+
+document.getElementById('form-siswa').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const namaInput = document.getElementById('input-nama-siswa');
+  const kelasSel = document.getElementById('input-siswa-kelas');
+  const nama = namaInput.value.trim();
+  const kelasId = kelasSel.value;
+  if (!nama || !kelasId) { showToast('Lengkapi nama siswa dan kelas.', 'error'); return; }
+  const { error } = await db.from('siswa').insert({ nama_siswa: nama, kelas_id: kelasId });
+  if (error) { showToast('Gagal menambah siswa: ' + error.message, 'error'); return; }
+  showToast('Siswa berhasil ditambahkan.');
+  namaInput.value = '';
+  await fetchSiswa();
+  renderAdmin();
+  const currentKelas = document.getElementById('input-kelas').value;
+  if (currentKelas) renderInputSiswaDropdown(currentKelas);
+});
+
+document.getElementById('form-jp').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const jpKe = document.getElementById('input-jp-ke').value;
+  const mulai = document.getElementById('input-jp-mulai').value;
+  const selesai = document.getElementById('input-jp-selesai').value;
+  if (!jpKe || !mulai || !selesai) { showToast('Lengkapi seluruh isian jam pelajaran.', 'error'); return; }
+  if (mulai >= selesai) { showToast('Jam mulai harus lebih awal dari jam selesai.', 'error'); return; }
+  const { error } = await db.from('jam_pelajaran').insert({ jp_ke: Number(jpKe), jam_mulai: mulai, jam_selesai: selesai });
+  if (error) { showToast('Gagal menambah jam pelajaran: ' + error.message, 'error'); return; }
+  showToast('Jam pelajaran berhasil ditambahkan.');
+  e.target.reset();
+  await fetchJamPelajaran();
+  renderAdmin();
+});
+
+// Delegated delete handlers
+document.getElementById('list-kelas').addEventListener('click', async (e) => {
+  const id = e.target.dataset.delKelas;
+  if (!id) return;
+  if (!confirm('Hapus kelas ini? Siswa terkait juga akan kehilangan referensi kelas.')) return;
+  const { error } = await db.from('kelas').delete().eq('id', id);
+  if (error) { showToast('Gagal menghapus kelas: ' + error.message, 'error'); return; }
+  showToast('Kelas dihapus.');
+  await Promise.all([fetchKelas(), fetchSiswa()]);
+  renderInputKelasDropdown();
+  renderAdmin();
+});
+
+document.getElementById('list-siswa').addEventListener('click', async (e) => {
+  const id = e.target.dataset.delSiswa;
+  if (!id) return;
+  if (!confirm('Hapus data siswa ini? Riwayat kunjungan terkait juga akan terhapus.')) return;
+  const { error } = await db.from('siswa').delete().eq('id', id);
+  if (error) { showToast('Gagal menghapus siswa: ' + error.message, 'error'); return; }
+  showToast('Siswa dihapus.');
+  await fetchSiswa();
+  renderAdmin();
+});
+
+document.getElementById('list-jp').addEventListener('click', async (e) => {
+  const id = e.target.dataset.delJp;
+  if (!id) return;
+  if (!confirm('Hapus pengaturan jam pelajaran ini?')) return;
+  const { error } = await db.from('jam_pelajaran').delete().eq('id', id);
+  if (error) { showToast('Gagal menghapus jam pelajaran: ' + error.message, 'error'); return; }
+  showToast('Jam pelajaran dihapus.');
+  await fetchJamPelajaran();
+  renderAdmin();
+});
+
+// Filter buttons
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    document.querySelectorAll('.filter-btn').forEach(b => {
+      b.classList.remove('bg-primary', 'text-white', 'border-primary');
+      b.classList.add('bg-white', 'text-ink');
+    });
+    btn.classList.add('bg-primary', 'text-white', 'border-primary');
+    btn.classList.remove('bg-white', 'text-ink');
+    state.activeFilter = btn.dataset.filter;
+    await fetchKunjungan(state.activeFilter);
+    renderDashboard();
+  });
+});
+
+/* ==========================================================================
+   9. NAVIGATION
+   ========================================================================== */
+const titles = {
+  dashboard: ['Dashboard Kunjungan', 'Ringkasan aktivitas poliklinik sekolah'],
+  input:     ['Input Kunjungan', 'Catat kunjungan siswa ke poliklinik'],
+  admin:     ['Kelola Admin', 'Atur data kelas, siswa, dan jam pelajaran']
+};
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('page-title').textContent = titles[tab][0];
+  document.getElementById('page-sub').textContent = titles[tab][1];
+  closeSidebar();
+}
+
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+function openSidebar() {
+  document.getElementById('sidebar').classList.remove('-translate-x-full');
+  document.getElementById('sidebar-overlay').classList.remove('hidden');
+}
+function closeSidebar() {
+  if (window.innerWidth >= 1024) return;
+  document.getElementById('sidebar').classList.add('-translate-x-full');
+  document.getElementById('sidebar-overlay').classList.add('hidden');
+}
+document.getElementById('hamburger').addEventListener('click', openSidebar);
+document.getElementById('sidebar-overlay').addEventListener('click', closeSidebar);
+
+/* ==========================================================================
+   10. CLOCK & INIT
+   ========================================================================== */
+function tickClock() {
+  const t = timeNowString();
+  document.getElementById('clock-display').textContent = t;
+  const inputClock = document.getElementById('input-clock');
+  if (inputClock) inputClock.textContent = t;
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+document.getElementById('today-badge').textContent = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+
+// Set default active filter button style
+document.addEventListener('DOMContentLoaded', () => {
+  const defaultBtn = document.querySelector('.filter-btn[data-filter="today"]');
+  if (defaultBtn) {
+    defaultBtn.classList.add('bg-primary', 'text-white', 'border-primary');
+    defaultBtn.classList.remove('bg-white', 'text-ink');
+  }
+});
+
+loadAllAndRender();
+</script>
+</body>
+</html>
