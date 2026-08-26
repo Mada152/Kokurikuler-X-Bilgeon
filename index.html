@@ -125,6 +125,10 @@
         <div id="jamBerjalan" class="text-lg font-700">--:--:--</div>
         <div id="tanggalBerjalan" class="text-[11px] text-teal-100/70">-</div>
       </div>
+      <!-- Tombol Switch Mode Admin/Publik -->
+      <a id="btnToggleMode" href="?mode=admin" class="btn-ghost text-xs px-3 py-2 bg-white/10 text-white border-white/20 hover:bg-white/20 flex items-center gap-1.5">
+        🔑 Mode Admin
+      </a>
     </div>
   </div>
 </header>
@@ -572,6 +576,40 @@ function terapkanModeTampilan(){
   renderTabel();
 }
 
+/* ====================== CONTROL HAK AKSES (PUBLIK / ADMIN) ====================== */
+function aturAksesPeran(){
+  const urlParams = new URLSearchParams(window.location.search);
+  const isAdmin = urlParams.get('mode') === 'admin';
+  
+  const kolomKiri = document.querySelector('main > div.lg\\:col-span-2');
+  const kolomTabel = document.querySelector('main > div.lg\\:col-span-3');
+  const btnToggle = document.getElementById('btnToggleMode');
+
+  if (!isAdmin) {
+    // === MODE PUBLIK / UMUM ===
+    if (kolomKiri) kolomKiri.style.display = 'none';
+    if (kolomTabel) {
+      kolomTabel.classList.remove('lg:col-span-3');
+      kolomTabel.classList.add('lg:col-span-5');
+    }
+    if (btnToggle) {
+      btnToggle.href = '?mode=admin';
+      btnToggle.innerHTML = '🔑 Mode Admin';
+    }
+  } else {
+    // === MODE ADMIN ===
+    if (kolomKiri) kolomKiri.style.display = 'flex';
+    if (kolomTabel) {
+      kolomTabel.classList.remove('lg:col-span-5');
+      kolomTabel.classList.add('lg:col-span-3');
+    }
+    if (btnToggle) {
+      btnToggle.href = window.location.pathname;
+      btnToggle.innerHTML = '👁️ Mode Publik';
+    }
+  }
+}
+
 /* ====================== INISIALISASI FORM ====================== */
 function siapkanForm(){
   isiDropdownKelas(document.getElementById("kunjunganKelas"), false);
@@ -730,10 +768,9 @@ function init(){
   renderDropdownPeriode();
   terapkanModeTampilan();
   tickJam();
+  aturAksesPeran();
 }
 init();
 </script>
 </body>
 </html>
-
-```
