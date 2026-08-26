@@ -721,34 +721,6 @@ document.getElementById("btnKembaliAktif").addEventListener("click", ()=>{
   terapkanModeTampilan();
 });
 
-  JavaScript
-/* ======================================================================
-   LOGIKA ROUTING HAK AKSES (PUBLIK vs ADMIN)
-   ====================================================================== */
-function aturAksesPeran() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const isAdmin = urlParams.get('mode') === 'admin';
-
-  // Kolom Kiri (Form Input, Manajemen Siswa, Pembekuan Periode)
-  const kolomKiri = document.querySelector('main > div.lg\\:col-span-2');
-  
-  if (!isAdmin) {
-    // Mode Publik: Sembunyikan Form Input & Manajemen
-    if (kolomKiri) kolomKiri.style.display = 'none';
-    
-    // Perluas Tabel Rekam Jejak ke Lebar Penuh (5 Kolom Grid)
-    const kolomTabel = document.querySelector('main > div.lg\\:col-span-3');
-    if (kolomTabel) {
-      kolomTabel.classList.remove('lg:col-span-3');
-      kolomTabel.classList.add('lg:col-span-5');
-    }
-  }
-}
-
-// Jalankan saat inisialisasi
-document.addEventListener("DOMContentLoaded", () => {
-  aturAksesPeran();
-});
 /* ====================== INISIALISASI APLIKASI ====================== */
 function init(){
   siapkanForm();
