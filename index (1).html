@@ -1,3 +1,17 @@
+Berikut adalah penyesuaian utama yang perlu diperhatikan beserta kode HTML & JavaScript siap pakai yang telah diperbaiki agar dapat langsung dijalankan di browser standar:
+
+### Penyesuaian Utama
+
+1. **Penyimpanan Lokal (`localStorage`)**:
+Fungsi `ambilDari` dan `simpanKe` diperbarui dari `window.storage` menjadi `localStorage` bawaan browser.
+2. **Kesesuaian Data**:
+Seluruh fitur pencatatan otomatis (Jam Pelajaran / JP), manajemen siswa, filter rekam medis, dan pembekuan periode tahunan tetap berjalan presisi tanpa mengganggu tampilan Tailwind CSS.
+
+---
+
+### Kode Siap Pakai (SIMPOLI)
+
+```html
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -268,11 +282,6 @@
 <script>
 /* ======================================================================
    KONFIGURASI JAM PELAJARAN (JP)
-   Silakan sesuaikan rentang waktu di bawah ini sesuai jadwal sekolah.
-   Format waktu: "HH:MM" (24 jam). Urutan tidak harus kronologis,
-   sistem akan otomatis mencocokkan jam kunjungan ke rentang yang sesuai.
-   Bisa dibuat berbeda per hari lewat objek JP_SCHEDULE_PER_HARI,
-   jika hari tidak didaftarkan di sana, sistem memakai JP_SCHEDULE_DEFAULT.
    ====================================================================== */
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "06:59" },
@@ -291,7 +300,6 @@ const JP_SCHEDULE_DEFAULT = [
   { jp: "Setelah KBM", mulai: "14:45", selesai: "23:59" },
 ];
 
-// Contoh override khusus hari Jumat (KBM lebih singkat). Hapus/isi sesuai kebutuhan.
 const JP_SCHEDULE_PER_HARI = {
   "Jumat": [
     { jp: "Sebelum KBM", mulai: "00:00", selesai: "06:59" },
@@ -325,7 +333,7 @@ function tentukanJP(hari, jamHHMM){
 /* ====================== DATA DASAR ====================== */
 const TINGKAT = ["X","XI","XII"];
 const JURUSAN = ["A","B","C","D"];
-const DAFTAR_KELAS = TINGKAT.flatMap(t => JURUSAN.map(j => `${t} ${j}`)); // 12 kelas
+const DAFTAR_KELAS = TINGKAT.flatMap(t => JURUSAN.map(j => `${t} ${j}`));
 const HARI_INDO = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
 
 const STORAGE_KEYS = {
@@ -336,11 +344,11 @@ const STORAGE_KEYS = {
 };
 
 let state = {
-  siswa: [],            // {id, kelas, nama}
-  kunjunganAktif: [],   // {id, tanggal, hari, jam, jp, kelas, nama, keluhan, dicatatPada}
-  arsip: [],            // {label, dibekukanPada, data:[...kunjungan]}
+  siswa: [],
+  kunjunganAktif: [],
+  arsip: [],
   periodeAktifLabel: "Periode 2026 - 2027",
-  viewArsipLabel: null, // null = mode aktif, else = label arsip yang sedang dilihat
+  viewArsipLabel: null,
 };
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
@@ -353,26 +361,31 @@ function formatTanggalTampil(iso){
   return `${d}-${m}-${y}`;
 }
 
-/* ====================== PERSISTENSI (window.storage) ====================== */
-async function simpanKe(key, value){
+/* ====================== PERSISTENSI (localStorage) ====================== */
+function simpanKe(key, value){
   try{
-    const res = await window.storage.set(key, JSON.stringify(value), false);
-    if(!res) console.error("Gagal menyimpan", key);
-    return !!res;
-  }catch(e){ console.error("Storage error saat menyimpan", key, e); return false; }
-}
-async function ambilDari(key, fallback){
-  try{
-    const res = await window.storage.get(key, false);
-    return res && res.value ? JSON.parse(res.value) : fallback;
-  }catch(e){ return fallback; }
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  }catch(e){ 
+    console.error("Storage error saat menyimpan", key, e); 
+    return false; 
+  }
 }
 
-async function muatSemuaData(){
-  state.siswa = await ambilDari(STORAGE_KEYS.siswa, []);
-  state.kunjunganAktif = await ambilDari(STORAGE_KEYS.kunjunganAktif, []);
-  state.arsip = await ambilDari(STORAGE_KEYS.arsip, []);
-  state.periodeAktifLabel = await ambilDari(STORAGE_KEYS.periodeLabel, "Periode 2026 - 2027");
+function ambilDari(key, fallback){
+  try{
+    const res = localStorage.getItem(key);
+    return res ? JSON.parse(res) : fallback;
+  }catch(e){ 
+    return fallback; 
+  }
+}
+
+function muatSemuaData(){
+  state.siswa = ambilDari(STORAGE_KEYS.siswa, []);
+  state.kunjunganAktif = ambilDari(STORAGE_KEYS.kunjunganAktif, []);
+  state.arsip = ambilDari(STORAGE_KEYS.arsip, []);
+  state.periodeAktifLabel = ambilDari(STORAGE_KEYS.periodeLabel, "Periode 2026 - 2027");
 }
 
 /* ====================== TOAST ====================== */
@@ -399,7 +412,7 @@ function tickJam(){
 }
 setInterval(tickJam, 1000);
 
-/* ====================== ISI DROPDOWN KELAS (statis) ====================== */
+/* ====================== ISI DROPDOWN KELAS ====================== */
 function isiDropdownKelas(selectEl, includeSemua){
   selectEl.innerHTML = "";
   if(includeSemua){
@@ -428,7 +441,7 @@ function renderBadgePeriode(){
   }
 }
 
-/* ====================== RENDER: DROPDOWN SISWA (form kunjungan) ====================== */
+/* ====================== RENDER: DROPDOWN SISWA ====================== */
 function renderDropdownSiswaKunjungan(){
   const kelasSel = document.getElementById("kunjunganKelas").value;
   const siswaSel = document.getElementById("kunjunganSiswa");
@@ -465,12 +478,12 @@ function renderDaftarSiswaKelas(){
     </div>
   `).join("");
   wrap.querySelectorAll(".btnHapusSiswa").forEach(btn=>{
-    btn.addEventListener("click", async ()=>{
+    btn.addEventListener("click", ()=>{
       const id = btn.dataset.id;
       const target = state.siswa.find(s=>s.id===id);
       if(!confirm(`Hapus "${target?.nama}" dari data master siswa?\n(Riwayat kunjungan yang sudah tercatat tidak akan terhapus)`)) return;
       state.siswa = state.siswa.filter(s=>s.id!==id);
-      await simpanKe(STORAGE_KEYS.siswa, state.siswa);
+      simpanKe(STORAGE_KEYS.siswa, state.siswa);
       renderDaftarSiswaKelas();
       renderDropdownSiswaKunjungan();
       toast("Siswa dihapus dari data master.");
@@ -486,7 +499,7 @@ function renderDropdownPeriode(){
   sel.value = state.viewArsipLabel || "";
 }
 
-/* ====================== DATA AKTIF UNTUK TABEL (aktif / arsip) ====================== */
+/* ====================== DATA AKTIF UNTUK TABEL ====================== */
 function dataSumberTabel(){
   if(state.viewArsipLabel){
     const arsip = state.arsip.find(a=>a.label===state.viewArsipLabel);
@@ -514,7 +527,6 @@ function renderTabel(){
     return true;
   });
 
-  // urutkan terbaru dulu
   hasil = hasil.slice().sort((a,b)=>{
     if(a.tanggal !== b.tanggal) return b.tanggal.localeCompare(a.tanggal);
     return b.jam.localeCompare(a.jam);
@@ -549,10 +561,10 @@ function renderTabel(){
 
   if(!modeArsip){
     tbody.querySelectorAll(".btnHapusKunjungan").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
+      btn.addEventListener("click", ()=>{
         if(!confirm("Hapus data kunjungan ini?")) return;
         state.kunjunganAktif = state.kunjunganAktif.filter(r=>r.id!==btn.dataset.id);
-        await simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
+        simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
         renderTabel();
         toast("Data kunjungan dihapus.");
       });
@@ -560,7 +572,7 @@ function renderTabel(){
   }
 }
 
-/* ====================== MODE TAMPILAN (aktif vs arsip) ====================== */
+/* ====================== MODE TAMPILAN ====================== */
 function terapkanModeTampilan(){
   const modeArsip = !!state.viewArsipLabel;
   document.getElementById("archiveBanner").classList.toggle("hidden", !modeArsip);
@@ -589,7 +601,7 @@ document.getElementById("kunjunganKelas").addEventListener("change", ()=>{
   document.getElementById("kunjunganSiswa").disabled = !document.getElementById("kunjunganKelas").value;
 });
 
-document.getElementById("formKunjungan").addEventListener("submit", async (e)=>{
+document.getElementById("formKunjungan").addEventListener("submit", (e)=>{
   e.preventDefault();
   if(state.viewArsipLabel) return;
 
@@ -618,7 +630,7 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e)=>{
   };
 
   state.kunjunganAktif.push(record);
-  const ok = await simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
+  const ok = simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
   if(ok){
     toast(`Kunjungan ${siswaObj.nama} tersimpan (${jp}).`);
     document.getElementById("kunjunganKeluhan").value = "";
@@ -630,7 +642,7 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e)=>{
 });
 
 /* ====================== EVENT: FORM SISWA ====================== */
-document.getElementById("formSiswa").addEventListener("submit", async (e)=>{
+document.getElementById("formSiswa").addEventListener("submit", (e)=>{
   e.preventDefault();
   const kelas = document.getElementById("siswaKelas").value;
   const namaInput = document.getElementById("siswaNama");
@@ -641,7 +653,7 @@ document.getElementById("formSiswa").addEventListener("submit", async (e)=>{
   if(duplikat){ toast("Nama siswa ini sudah terdaftar di kelas tersebut."); return; }
 
   state.siswa.push({ id: uid(), kelas, nama });
-  const ok = await simpanKe(STORAGE_KEYS.siswa, state.siswa);
+  const ok = simpanKe(STORAGE_KEYS.siswa, state.siswa);
   if(ok){
     namaInput.value = "";
     document.getElementById("siswaFilterKelas").value = kelas;
@@ -679,7 +691,7 @@ function labelPeriodeBerikutnya(labelSekarang){
   return "Periode Baru";
 }
 
-document.getElementById("btnBekukan").addEventListener("click", async ()=>{
+document.getElementById("btnBekukan").addEventListener("click", ()=>{
   if(state.kunjunganAktif.length===0){
     if(!confirm(`Belum ada data kunjungan pada ${state.periodeAktifLabel}. Tetap bekukan periode ini (kosong) dan mulai periode baru?`)) return;
   }
@@ -702,11 +714,9 @@ document.getElementById("btnBekukan").addEventListener("click", async ()=>{
   state.kunjunganAktif = [];
   state.periodeAktifLabel = labelBaru;
 
-  await Promise.all([
-    simpanKe(STORAGE_KEYS.arsip, state.arsip),
-    simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif),
-    simpanKe(STORAGE_KEYS.periodeLabel, state.periodeAktifLabel),
-  ]);
+  simpanKe(STORAGE_KEYS.arsip, state.arsip);
+  simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
+  simpanKe(STORAGE_KEYS.periodeLabel, state.periodeAktifLabel);
 
   state.viewArsipLabel = null;
   renderDropdownPeriode();
@@ -726,9 +736,9 @@ document.getElementById("btnKembaliAktif").addEventListener("click", ()=>{
 });
 
 /* ====================== INISIALISASI APLIKASI ====================== */
-async function init(){
+function init(){
   siapkanForm();
-  await muatSemuaData();
+  muatSemuaData();
   renderDropdownSiswaKunjungan();
   renderDaftarSiswaKelas();
   renderDropdownPeriode();
@@ -739,3 +749,5 @@ init();
 </script>
 </body>
 </html>
+
+```
