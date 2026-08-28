@@ -256,7 +256,7 @@
               <th>Kelas</th>
               <th>Nama Siswa</th>
               <th>Keluhan</th>
-              <th></th>
+              <th id="thAksi">Aksi</th>
             </tr>
           </thead>
           <tbody id="tabelBody"></tbody>
@@ -270,6 +270,12 @@
 <div id="toastWrap"></div>
 
 <script>
+/* ======================================================================
+   KONFIGURASI PENTING
+   ====================================================================== */
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx1YpXY_GwfIXsuBwLdZB7tY74kZk4yBW-lmDkvixOdYpMYi01UkdEl6DE-z0lUFEzZ7Q/exec"; // Masukkan URL Google Script Anda di sini
+const PIN_ADMIN = "123456"; // Ganti PIN sesuai keinginan Anda
+
 /* ======================================================================
    KONFIGURASI JAM PELAJARAN (JP)
    ====================================================================== */
@@ -341,17 +347,20 @@ let state = {
   viewArsipLabel: null,
 };
 
+let IS_ADMIN_AUTHENTICATED = false;
+
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
 
 function pad(n){ return String(n).padStart(2,"0"); }
 function formatTanggal(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 function formatJam(d){ return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function formatTanggalTampil(iso){
+  if(!iso) return "";
   const [y,m,d] = iso.split("-");
   return `${d}-${m}-${y}`;
 }
 
-/* ====================== PERSISTENSI (localStorage) ====================== */
+/* ====================== PERSISTENSI & SINKRONISASI ====================== */
 function simpanKe(key, value){
   try{
     localStorage.setItem(key, JSON.stringify(value));
@@ -376,6 +385,24 @@ function muatSemuaData(){
   state.kunjunganAktif = ambilDari(STORAGE_KEYS.kunjunganAktif, []);
   state.arsip = ambilDari(STORAGE_KEYS.arsip, []);
   state.periodeAktifLabel = ambilDari(STORAGE_KEYS.periodeLabel, "Periode 2026 - 2027");
+  
+  // Ambil data online dari Google Sheets jika tersedia
+  if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== "GANTI_DENGAN_URL_WEB_APP_GOOGLE_APPS_SCRIPT_ANDA") {
+    toast("🔄 Menghubungkan ke server...");
+    fetch(GOOGLE_SCRIPT_URL)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          state.kunjunganAktif = data;
+          simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
+          renderTabel();
+          toast("✅ Data terbaru dimuat online.");
+        }
+      })
+      .catch(err => {
+        console.warn("Offline atau Apps Script belum siap:", err);
+      });
+  }
 }
 
 /* ====================== TOAST ====================== */
@@ -524,6 +551,11 @@ function renderTabel(){
 
   const tbody = document.getElementById("tabelBody");
   const emptyState = document.getElementById("emptyState");
+  const thAksi = document.getElementById("thAksi");
+  
+  // Sembunyikan kolom aksi jika bukan Admin
+  if (thAksi) thAksi.style.display = IS_ADMIN_AUTHENTICATED ? "" : "none";
+
   document.getElementById("jumlahData").textContent = `${hasil.length} data`;
 
   if(hasil.length===0){
@@ -545,11 +577,11 @@ function renderTabel(){
       <td><span class="font-600">${row.kelas}</span></td>
       <td class="font-600">${row.nama}</td>
       <td class="max-w-xs whitespace-pre-wrap text-teal-900/80">${row.keluhan}</td>
-      <td>${modeArsip ? "" : `<button data-id="${row.id}" class="btnHapusKunjungan text-rose-500 hover:text-rose-700 text-xs">✕</button>`}</td>
+      ${IS_ADMIN_AUTHENTICATED ? `<td>${modeArsip ? "" : `<button data-id="${row.id}" class="btnHapusKunjungan text-rose-500 hover:text-rose-700 text-xs">✕ Hapus</button>`}</td>` : ""}
     </tr>
   `).join("");
 
-  if(!modeArsip){
+  if(!modeArsip && IS_ADMIN_AUTHENTICATED){
     tbody.querySelectorAll(".btnHapusKunjungan").forEach(btn=>{
       btn.addEventListener("click", ()=>{
         if(!confirm("Hapus data kunjungan ini?")) return;
@@ -579,13 +611,26 @@ function terapkanModeTampilan(){
 /* ====================== CONTROL HAK AKSES (PUBLIK / ADMIN) ====================== */
 function aturAksesPeran(){
   const urlParams = new URLSearchParams(window.location.search);
-  const isAdmin = urlParams.get('mode') === 'admin';
+  const isAdminRequest = urlParams.get('mode') === 'admin';
+  
+  if (isAdminRequest) {
+    const inputPin = prompt("Masukkan PIN Keamanan Admin:");
+    if (inputPin === PIN_ADMIN) {
+      IS_ADMIN_AUTHENTICATED = true;
+    } else {
+      alert("PIN Salah! Anda tidak diperbolehkan masuk ke Mode Admin.");
+      window.location.href = window.location.pathname; // Kembali ke Publik
+      return;
+    }
+  } else {
+    IS_ADMIN_AUTHENTICATED = false;
+  }
   
   const kolomKiri = document.querySelector('main > div.lg\\:col-span-2');
   const kolomTabel = document.querySelector('main > div.lg\\:col-span-3');
   const btnToggle = document.getElementById('btnToggleMode');
 
-  if (!isAdmin) {
+  if (!IS_ADMIN_AUTHENTICATED) {
     // === MODE PUBLIK / UMUM ===
     if (kolomKiri) kolomKiri.style.display = 'none';
     if (kolomTabel) {
@@ -605,7 +650,7 @@ function aturAksesPeran(){
     }
     if (btnToggle) {
       btnToggle.href = window.location.pathname;
-      btnToggle.innerHTML = '👁️ Mode Publik';
+      btnToggle.innerHTML = '🚪 Keluar Admin';
     }
   }
 }
@@ -653,15 +698,25 @@ document.getElementById("formKunjungan").addEventListener("submit", (e)=>{
     dicatatPada: now.toISOString(),
   };
 
+  // 1. Simpan Lokal
   state.kunjunganAktif.push(record);
-  const ok = simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
-  if(ok){
-    toast(`Kunjungan ${siswaObj.nama} tersimpan (${jp}).`);
-    document.getElementById("kunjunganKeluhan").value = "";
-    document.getElementById("kunjunganSiswa").value = "";
-    renderTabel();
+  simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
+  renderTabel();
+  document.getElementById("kunjunganKeluhan").value = "";
+  document.getElementById("kunjunganSiswa").value = "";
+
+  // 2. Kirim ke Google Sheets Online jika URL valid
+  if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== "GANTI_DENGAN_URL_WEB_APP_GOOGLE_APPS_SCRIPT_ANDA") {
+    fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record)
+    })
+    .then(() => toast(`Kunjungan ${siswaObj.nama} tersimpan online.`))
+    .catch(() => toast(`Tersimpan lokal (gagal terhubung server).`));
   } else {
-    toast("Gagal menyimpan data. Coba lagi.");
+    toast(`Kunjungan ${siswaObj.nama} tersimpan lokal.`);
   }
 });
 
@@ -761,6 +816,7 @@ document.getElementById("btnKembaliAktif").addEventListener("click", ()=>{
 
 /* ====================== INISIALISASI APLIKASI ====================== */
 function init(){
+  aturAksesPeran();
   siapkanForm();
   muatSemuaData();
   renderDropdownSiswaKunjungan();
@@ -768,7 +824,6 @@ function init(){
   renderDropdownPeriode();
   terapkanModeTampilan();
   tickJam();
-  aturAksesPeran();
 }
 init();
 </script>
