@@ -273,7 +273,7 @@
 /* ======================================================================
    KONFIGURASI PENTING
    ====================================================================== */
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzPr94aCa377mOnwFnxrgEPb7S-uGTUbXWP8SpZ3rVVrCTYQ-vBRjrb8vBVhVThEyX_Dw/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwO-pTUJd0swywWvcFRJzfpeZU0Cv87j-DtaH0cp0_ox-VQmy0DMKh671KaBCu7prDnag/exec";
 const PIN_ADMIN = "123456";
 
 /* ======================================================================
@@ -352,7 +352,15 @@ let IS_ADMIN_AUTHENTICATED = false;
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
 
 function pad(n){ return String(n).padStart(2,"0"); }
-function formatTanggal(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function formatTanggalTampil(iso){
+  if(!iso || iso === "undefined") return "-";
+  // Jika tanggal dikirim dalam format ISO pendek YYYY-MM-DD
+  const p = iso.split("-");
+  if(p.length === 3) {
+    return `${p[2].substring(0,2)}-${p[1]}-${p[0]}`;
+  }
+  return iso;
+}
 function formatJam(d){ return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function formatTanggalTampil(iso){
   if(!iso) return "";
@@ -391,12 +399,20 @@ function muatSemuaData(){
     fetch(GOOGLE_SCRIPT_URL)
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          state.kunjunganAktif = data;
+        // Ambil Data Kunjungan Online
+        if (data.kunjungan && Array.isArray(data.kunjungan)) {
+          state.kunjunganAktif = data.kunjungan;
           simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
-          renderTabel();
-          toast("✅ Data Google Sheets berhasil dimuat.");
         }
+        // Ambil Data Siswa Online
+        if (data.siswa && Array.isArray(data.siswa) && data.siswa.length > 0) {
+          state.siswa = data.siswa;
+          simpanKe(STORAGE_KEYS.siswa, state.siswa);
+          renderDaftarSiswaKelas();
+          renderDropdownSiswaKunjungan();
+        }
+        renderTabel();
+        toast("✅ Data Google Sheets berhasil disinkronkan.");
       })
       .catch(err => {
         console.warn("Server offline / menggunakan mode lokal:", err);
@@ -734,34 +750,25 @@ document.getElementById("formSiswa").addEventListener("submit", (e)=>{
   const duplikat = state.siswa.some(s=>s.kelas===kelas && s.nama.toLowerCase()===nama.toLowerCase());
   if(duplikat){ toast("Nama siswa ini sudah terdaftar di kelas tersebut."); return; }
 
-  state.siswa.push({ id: uid(), kelas, nama });
-  const ok = simpanKe(STORAGE_KEYS.siswa, state.siswa);
-  if(ok){
-    namaInput.value = "";
-    document.getElementById("siswaFilterKelas").value = kelas;
-    renderDaftarSiswaKelas();
-    renderDropdownSiswaKunjungan();
-    toast(`${nama} ditambahkan ke kelas ${kelas}.`);
-  } else {
-    toast("Gagal menyimpan data siswa.");
+  const newSiswa = { id: uid(), kelas, nama, type: "SIMPAN_SISWA" };
+
+  state.siswa.push(newSiswa);
+  simpanKe(STORAGE_KEYS.siswa, state.siswa);
+  
+  namaInput.value = "";
+  document.getElementById("siswaFilterKelas").value = kelas;
+  renderDaftarSiswaKelas();
+  renderDropdownSiswaKunjungan();
+
+  // Kirim Siswa Baru ke Google Sheets
+  if (GOOGLE_SCRIPT_URL) {
+    const formData = new URLSearchParams();
+    Object.keys(newSiswa).forEach(key => formData.append(key, newSiswa[key]));
+    fetch(GOOGLE_SCRIPT_URL, { method: "POST", body: formData })
+      .then(() => toast(`✅ ${nama} tersimpan online.`))
+      .catch(() => toast(`Tersimpan lokal.`));
   }
 });
-
-document.getElementById("siswaFilterKelas").addEventListener("change", renderDaftarSiswaKelas);
-
-/* ====================== EVENT: FILTER TABEL ====================== */
-["filterCari","filterKelas","filterDari","filterSampai"].forEach(id=>{
-  document.getElementById(id).addEventListener("input", renderTabel);
-  document.getElementById(id).addEventListener("change", renderTabel);
-});
-document.getElementById("btnResetFilter").addEventListener("click", ()=>{
-  document.getElementById("filterCari").value = "";
-  document.getElementById("filterKelas").value = "";
-  document.getElementById("filterDari").value = "";
-  document.getElementById("filterSampai").value = "";
-  renderTabel();
-});
-
 /* ====================== EVENT: ARSIP PERIODE ====================== */
 function labelPeriodeBerikutnya(labelSekarang){
   const angka = labelSekarang.match(/\d{4}/g);
