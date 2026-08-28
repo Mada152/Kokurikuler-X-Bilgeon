@@ -125,7 +125,6 @@
         <div id="jamBerjalan" class="text-lg font-700">--:--:--</div>
         <div id="tanggalBerjalan" class="text-[11px] text-teal-100/70">-</div>
       </div>
-      <!-- Tombol Switch Mode Admin/Publik -->
       <a id="btnToggleMode" href="?mode=admin" class="btn-ghost text-xs px-3 py-2 bg-white/10 text-white border-white/20 hover:bg-white/20 flex items-center gap-1.5">
         🔑 Mode Admin
       </a>
@@ -326,7 +325,7 @@ function tentukanJP(hari, jamHHMM){
   return "Di luar jadwal";
 }
 
-/* ====================== DATA DASAR ====================== */
+/* ====================== DATA DASAR & PENOLONG TANGGAL ====================== */
 const TINGKAT = ["X","XI","XII"];
 const JURUSAN = ["A","B","C","D"];
 const DAFTAR_KELAS = TINGKAT.flatMap(t => JURUSAN.map(j => `${t} ${j}`));
@@ -350,22 +349,27 @@ let state = {
 let IS_ADMIN_AUTHENTICATED = false;
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-
 function pad(n){ return String(n).padStart(2,"0"); }
+
+function formatTanggal(d){ 
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; 
+}
+
+function formatJam(d){ 
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`; 
+}
+
+function getNamaHari(d){
+  return HARI_INDO[d.getDay()];
+}
+
 function formatTanggalTampil(iso){
   if(!iso || iso === "undefined") return "-";
-  // Jika tanggal dikirim dalam format ISO pendek YYYY-MM-DD
   const p = iso.split("-");
   if(p.length === 3) {
     return `${p[2].substring(0,2)}-${p[1]}-${p[0]}`;
   }
   return iso;
-}
-function formatJam(d){ return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
-function formatTanggalTampil(iso){
-  if(!iso) return "";
-  const [y,m,d] = iso.split("-");
-  return `${d}-${m}-${y}`;
 }
 
 /* ====================== PERSISTENSI & SINKRONISASI ====================== */
@@ -399,12 +403,10 @@ function muatSemuaData(){
     fetch(GOOGLE_SCRIPT_URL)
       .then(res => res.json())
       .then(data => {
-        // Ambil Data Kunjungan Online
         if (data.kunjungan && Array.isArray(data.kunjungan)) {
           state.kunjunganAktif = data.kunjungan;
           simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
         }
-        // Ambil Data Siswa Online
         if (data.siswa && Array.isArray(data.siswa) && data.siswa.length > 0) {
           state.siswa = data.siswa;
           simpanKe(STORAGE_KEYS.siswa, state.siswa);
@@ -680,17 +682,21 @@ function siapkanForm(){
   isiDropdownKelas(document.getElementById("filterKelas"), true);
 }
 
-/* ====================== EVENT: FORM KUNJUNGAN ====================== */
+/* ====================== EVENT LISTENERS ====================== */
 document.getElementById("kunjunganKelas").addEventListener("change", ()=>{
   renderDropdownSiswaKunjungan();
-  document.getElementById("kunjunganSiswa").disabled = !document.getElementById("kunjunganKelas").value;
 });
 
+document.getElementById("siswaFilterKelas").addEventListener("change", ()=>{
+  renderDaftarSiswaKelas();
+});
+
+// SUBMIT KUNJUNGAN
 document.getElementById("formKunjungan").addEventListener("submit", (e) => {
   e.preventDefault();
   
-  const siswaId = document.getElementById("kunjunganSiswaId").value;
-  const keluhan = document.getElementById("kunjunganKeluhan").value;
+  const siswaId = document.getElementById("kunjunganSiswa").value;
+  const keluhan = document.getElementById("kunjunganKeluhan").value.trim();
   const siswaObj = state.siswa.find(s => s.id === siswaId);
 
   if (!siswaObj || !keluhan) {
@@ -699,12 +705,15 @@ document.getElementById("formKunjungan").addEventListener("submit", (e) => {
   }
 
   const now = new Date();
+  const hari = getNamaHari(now);
+  const jam = formatJam(now);
+
   const record = {
     id: uid(),
-    tanggal: now.toISOString().split("T")[0],
-    hari: getNamaHari(now),
-    jam: getFormatJam(now),
-    jp: document.getElementById("kunjunganJP") ? document.getElementById("kunjunganJP").value : "",
+    tanggal: formatTanggal(now),
+    hari: hari,
+    jam: jam,
+    jp: tentukanJP(hari, jam),
     kelas: siswaObj.kelas,
     nama: siswaObj.nama,
     keluhan: keluhan,
@@ -731,7 +740,7 @@ document.getElementById("formKunjungan").addEventListener("submit", (e) => {
   }
 });
 
-/* ====================== EVENT: FORM SISWA ====================== */
+// SUBMIT SISWA
 document.getElementById("formSiswa").addEventListener("submit", (e) => {
   e.preventDefault();
   const kelas = document.getElementById("siswaKelas").value;
@@ -743,9 +752,15 @@ document.getElementById("formSiswa").addEventListener("submit", (e) => {
     return; 
   }
 
+  const duplikat = state.siswa.some(s => s.kelas === kelas && s.nama.toLowerCase() === nama.toLowerCase());
+  if (duplikat) {
+    toast("Nama siswa sudah terdaftar pada kelas tersebut.");
+    return;
+  }
+
   const newSiswa = { id: uid(), kelas, nama, type: "SIMPAN_SISWA" };
 
-  // 1. Simpan ke Lokal Terlebih Dahulu (Pasti Berhasil)
+  // 1. Simpan ke Lokal
   state.siswa.push(newSiswa);
   simpanKe(STORAGE_KEYS.siswa, state.siswa);
   
@@ -754,7 +769,7 @@ document.getElementById("formSiswa").addEventListener("submit", (e) => {
   renderDropdownSiswaKunjungan();
   toast(`✅ ${nama} berhasil ditambahkan.`);
 
-  // 2. Kirim ke Online di Latar Belakang
+  // 2. Kirim ke Online
   if (typeof GOOGLE_SCRIPT_URL !== "undefined" && GOOGLE_SCRIPT_URL !== "") {
     const formData = new URLSearchParams();
     Object.keys(newSiswa).forEach(key => formData.append(key, newSiswa[key]));
@@ -765,6 +780,7 @@ document.getElementById("formSiswa").addEventListener("submit", (e) => {
     }).catch(err => console.warn("Siswa tersimpan lokal, gagal sync online:", err));
   }
 });
+
 /* ====================== EVENT: ARSIP PERIODE ====================== */
 function labelPeriodeBerikutnya(labelSekarang){
   const angka = labelSekarang.match(/\d{4}/g);
@@ -789,21 +805,21 @@ document.getElementById("btnBekukan").addEventListener("click", ()=>{
 
   state.arsip.push({
     label: labelLama,
-    data: dataDibekukan,
     dibekukanPada: new Date().toISOString(),
+    data: dataDibekukan
   });
 
   state.kunjunganAktif = [];
   state.periodeAktifLabel = labelBaru;
-  state.viewArsipLabel = null;
 
   simpanKe(STORAGE_KEYS.arsip, state.arsip);
   simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
   simpanKe(STORAGE_KEYS.periodeLabel, state.periodeAktifLabel);
 
   renderDropdownPeriode();
-  terapkanModeTampilan();
-  toast(`Periode dibekukan. Selamat datang di ${labelBaru}!`);
+  renderBadgePeriode();
+  renderTabel();
+  toast(`Periode ${labelLama} dibekukan. Memulai ${labelBaru}.`);
 });
 
 document.getElementById("pilihPeriode").addEventListener("change", (e)=>{
@@ -814,18 +830,31 @@ document.getElementById("pilihPeriode").addEventListener("change", (e)=>{
 
 document.getElementById("btnKembaliAktif").addEventListener("click", ()=>{
   state.viewArsipLabel = null;
-  document.getElementById("pilihPeriode").value = "";
+  renderDropdownPeriode();
   terapkanModeTampilan();
 });
 
-/* ====================== RUN KETIKA APLIKASI DIMUAT ====================== */
-document.addEventListener("DOMContentLoaded", ()=>{
+// FILTER EVENTS
+document.getElementById("filterCari").addEventListener("input", renderTabel);
+document.getElementById("filterKelas").addEventListener("change", renderTabel);
+document.getElementById("filterDari").addEventListener("change", renderTabel);
+document.getElementById("filterSampai").addEventListener("change", renderTabel);
+document.getElementById("btnResetFilter").addEventListener("click", ()=>{
+  document.getElementById("filterCari").value = "";
+  document.getElementById("filterKelas").value = "";
+  document.getElementById("filterDari").value = "";
+  document.getElementById("filterSampai").value = "";
+  renderTabel();
+});
+
+/* ====================== JALANKAN SAAT STARTUP ====================== */
+window.addEventListener("DOMContentLoaded", ()=>{
+  aturAksesPeran();
   siapkanForm();
   muatSemuaData();
-  aturAksesPeran();
   renderDaftarSiswaKelas();
   renderDropdownPeriode();
-  terapkanModeTampilan();
+  renderBadgePeriode();
   tickJam();
 });
 </script>
