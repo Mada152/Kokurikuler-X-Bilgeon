@@ -109,7 +109,7 @@
 </head>
 <body class="pb-16">
 
-<!-- ============ HEADER ============ -->
+<!-- HEADER -->
 <header class="border-b border-teal-900/10 bg-gradient-to-r from-[var(--teal-950)] to-[var(--teal-800)] text-white">
   <div class="max-w-7xl mx-auto px-5 py-5 flex flex-wrap items-center justify-between gap-4">
     <div class="flex items-center gap-3">
@@ -134,9 +134,8 @@
 
 <main class="max-w-7xl mx-auto px-5 mt-6 grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-  <!-- ============ KOLOM KIRI: FORM ============ -->
+  <!-- KOLOM KIRI -->
   <div class="lg:col-span-2 flex flex-col gap-5">
-
     <!-- Banner mode arsip -->
     <div id="archiveBanner" class="hidden card p-4 border-amber-300 bg-[var(--amber-soft)] fade-in">
       <p class="text-sm font-700 text-[var(--amber)]">📁 Sedang menampilkan arsip (mode baca saja)</p>
@@ -201,7 +200,7 @@
         <span class="text-lg">🗄️</span>
         <h2 class="font-display font-700 text-base">Arsip Periode Tahunan</h2>
       </div>
-      <p class="text-xs text-teal-900/60 mb-3">Bekukan seluruh data kunjungan periode berjalan lalu mulai catatan baru. Data yang dibekukan menjadi arsip baca-saja dan tidak bisa diubah.</p>
+      <p class="text-xs text-teal-900/60 mb-3">Bekukan seluruh data kunjungan periode berjalan lalu mulai catatan baru.</p>
       <button id="btnBekukan" class="btn-amber w-full py-2.5 text-sm mb-4">🔒 Bekukan Periode Sekarang</button>
 
       <label class="label-field">Lihat Arsip Periode</label>
@@ -209,7 +208,7 @@
     </section>
   </div>
 
-  <!-- ============ KOLOM KANAN: TABEL ============ -->
+  <!-- KOLOM KANAN: TABEL -->
   <div class="lg:col-span-3">
     <section class="card p-5 relative overflow-hidden">
       <div id="stampArsip" class="stamp hidden">Arsip · Baca Saja</div>
@@ -269,15 +268,9 @@
 <div id="toastWrap"></div>
 
 <script>
-/* ======================================================================
-   KONFIGURASI PENTING
-   ====================================================================== */
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby6RteguiRuPLNhx_5rq1N5kTRHlyfiIeuSFedKvphz0ZNZLrSZm5b9_50CviPYesvEtQ/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxq1agYscIqtetefVQr9MgvhjMOhnZe1QpppaX6p4innOiLL-R6-0tPyzLioYH3QdeF3Q/exec";
 const PIN_ADMIN = "DIVING";
 
-/* ======================================================================
-   KONFIGURASI JAM PELAJARAN (JP) - DAPAT DISESUAIKAN NANTI
-   ====================================================================== */
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "06:59" },
   { jp: "Upacara/Tadarus", mulai: "07:00", selesai: "07:15" },
@@ -329,7 +322,6 @@ function tentukanJP(hari, jamStr){
   return "Di luar jadwal";
 }
 
-/* ====================== PENOLONG TANGGAL & JAM ====================== */
 const TINGKAT = ["X","XI","XII"];
 const JURUSAN = ["A","B","C","D"];
 const DAFTAR_KELAS = TINGKAT.flatMap(t => JURUSAN.map(j => `${t} ${j}`));
@@ -354,64 +346,40 @@ let IS_ADMIN_AUTHENTICATED = false;
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
 function pad(n){ return String(n).padStart(2,"0"); }
-
-function formatTanggal(d){ 
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; 
-}
-
-function formatJam(d){ 
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`; 
-}
-
-function getNamaHari(d){
-  return HARI_INDO[d.getDay()];
-}
+function formatTanggal(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function formatJam(d){ return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function getNamaHari(d){ return HARI_INDO[d.getDay()]; }
 
 function formatTanggalTampil(iso){
   if(!iso || iso === "undefined") return "-";
   if(iso.includes("T")) iso = iso.split("T")[0];
   const p = iso.split("-");
-  if(p.length === 3) {
-    return `${p[2].substring(0,2)}-${p[1]}-${p[0]}`;
-  }
+  if(p.length === 3) return `${p[2].substring(0,2)}-${p[1]}-${p[0]}`;
   return iso;
 }
 
-// FUNGSI PEMBERSIH UNTUK MENGATASI BUG 1899 DARI GOOGLE SHEETS
 function bersihkanFormatJam(jamRaw){
   if(!jamRaw) return "--:--";
   let str = String(jamRaw).trim();
-  
   if(str.includes("1899") || str.includes("GMT") || str.includes("T")){
     const match = str.match(/(\d{2}):(\d{2})/);
     if(match) return `${match[1]}:${match[2]}`;
   }
-  
   const p = str.split(":");
-  if(p.length >= 2){
-    return `${pad(parseInt(p[0]))}:${pad(parseInt(p[1]))}`;
-  }
+  if(p.length >= 2) return `${pad(parseInt(p[0]))}:${pad(parseInt(p[1]))}`;
   return str;
 }
 
-/* ====================== PERSISTENSI & SINKRONISASI ====================== */
 function simpanKe(key, value){
-  try{
-    localStorage.setItem(key, JSON.stringify(value));
-    return true;
-  }catch(e){ 
-    console.error("Storage error saat menyimpan", key, e); 
-    return false; 
-  }
+  try { localStorage.setItem(key, JSON.stringify(value)); return true; } 
+  catch(e){ return false; }
 }
 
 function ambilDari(key, fallback){
   try{
     const res = localStorage.getItem(key);
     return res ? JSON.parse(res) : fallback;
-  }catch(e){ 
-    return fallback; 
-  }
+  }catch(e){ return fallback; }
 }
 
 function muatSemuaData(){
@@ -419,7 +387,14 @@ function muatSemuaData(){
   state.kunjunganAktif = ambilDari(STORAGE_KEYS.kunjunganAktif, []);
   state.arsip = ambilDari(STORAGE_KEYS.arsip, []);
   state.periodeAktifLabel = ambilDari(STORAGE_KEYS.periodeLabel, "Periode 2026 - 2027");
-  
+
+  // Pastikan semua data siswa lokal punya id
+  state.siswa = state.siswa.map((s, idx) => ({
+    id: s.id || `siswa-local-${idx}-${s.nama}`,
+    nama: s.nama,
+    kelas: s.kelas
+  }));
+
   if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== "") {
     toast("🔄 Menghubungkan ke server...");
     fetch(GOOGLE_SCRIPT_URL)
@@ -430,21 +405,23 @@ function muatSemuaData(){
           simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
         }
         if (data.siswa && Array.isArray(data.siswa) && data.siswa.length > 0) {
-          state.siswa = data.siswa;
+          // Normalisasi siswa dari Spreadsheet (Generate ID jika belum ada)
+          state.siswa = data.siswa.map((s, idx) => ({
+            id: s.id || `siswa-sheet-${idx}-${s.nama}`,
+            nama: s.nama,
+            kelas: s.kelas
+          }));
           simpanKe(STORAGE_KEYS.siswa, state.siswa);
-          renderDaftarSiswaKelas();
-          renderDropdownSiswaKunjungan();
         }
+        renderDaftarSiswaKelas();
+        renderDropdownSiswaKunjungan();
         renderTabel();
         toast("✅ Data berhasil disinkronkan.");
       })
-      .catch(err => {
-        console.warn("Server offline / menggunakan mode lokal:", err);
-      });
+      .catch(err => console.warn("Modus Offline / Server Error:", err));
   }
 }
 
-/* ====================== TOAST ====================== */
 function toast(msg){
   const wrap = document.getElementById("toastWrap");
   const el = document.createElement("div");
@@ -454,7 +431,6 @@ function toast(msg){
   setTimeout(()=>{ el.style.opacity="0"; el.style.transition="opacity .3s"; setTimeout(()=>el.remove(),300); }, 2200);
 }
 
-/* ====================== JAM BERJALAN ====================== */
 function tickJam(){
   const now = new Date();
   document.getElementById("jamBerjalan").textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
@@ -468,7 +444,6 @@ function tickJam(){
 }
 setInterval(tickJam, 1000);
 
-/* ====================== ISI DROPDOWN KELAS ====================== */
 function isiDropdownKelas(selectEl, includeSemua){
   selectEl.innerHTML = "";
   if(includeSemua){
@@ -487,7 +462,6 @@ function isiDropdownKelas(selectEl, includeSemua){
   });
 }
 
-/* ====================== RENDER: BADGE PERIODE ====================== */
 function renderBadgePeriode(){
   const wrap = document.getElementById("periodeBadgeWrap");
   if(state.viewArsipLabel){
@@ -497,11 +471,11 @@ function renderBadgePeriode(){
   }
 }
 
-/* ====================== RENDER: DROPDOWN SISWA ====================== */
 function renderDropdownSiswaKunjungan(){
   const kelasSel = document.getElementById("kunjunganKelas").value;
   const siswaSel = document.getElementById("kunjunganSiswa");
   siswaSel.innerHTML = "";
+
   if(!kelasSel){
     siswaSel.disabled = true;
     siswaSel.innerHTML = `<option value="">Pilih kelas terlebih dahulu</option>`;
@@ -518,7 +492,6 @@ function renderDropdownSiswaKunjungan(){
     daftar.map(s=>`<option value="${s.id}">${s.nama}</option>`).join("");
 }
 
-/* ====================== RENDER: MANAJEMEN SISWA ====================== */
 function renderDaftarSiswaKelas(){
   const kelas = document.getElementById("siswaFilterKelas").value;
   const wrap = document.getElementById("daftarSiswaKelas");
@@ -537,7 +510,7 @@ function renderDaftarSiswaKelas(){
     btn.addEventListener("click", ()=>{
       const id = btn.dataset.id;
       const target = state.siswa.find(s=>s.id===id);
-      if(!confirm(`Hapus "${target?.nama}" dari data master siswa?\n(Riwayat kunjungan yang sudah tercatat tidak akan terhapus)`)) return;
+      if(!confirm(`Hapus "${target?.nama}" dari data master siswa?`)) return;
       state.siswa = state.siswa.filter(s=>s.id!==id);
       simpanKe(STORAGE_KEYS.siswa, state.siswa);
       renderDaftarSiswaKelas();
@@ -547,15 +520,13 @@ function renderDaftarSiswaKelas(){
   });
 }
 
-/* ====================== RENDER: DROPDOWN ARSIP ====================== */
 function renderDropdownPeriode(){
   const sel = document.getElementById("pilihPeriode");
   sel.innerHTML = `<option value="">— (Aktif) ${state.periodeAktifLabel} —</option>` +
-    state.arsip.slice().reverse().map(a=>`<option value="${a.label}">${a.label} (dibekukan ${new Date(a.dibekukanPada).toLocaleDateString('id-ID')})</option>`).join("");
+    state.arsip.slice().reverse().map(a=>`<option value="${a.label}">${a.label}</option>`).join("");
   sel.value = state.viewArsipLabel || "";
 }
 
-/* ====================== DATA AKTIF UNTUK TABEL ====================== */
 function dataSumberTabel(){
   if(state.viewArsipLabel){
     const arsip = state.arsip.find(a=>a.label===state.viewArsipLabel);
@@ -564,7 +535,6 @@ function dataSumberTabel(){
   return state.kunjunganAktif;
 }
 
-/* ====================== RENDER TABEL ====================== */
 function renderTabel(){
   const sumber = dataSumberTabel();
   const cari = document.getElementById("filterCari").value.trim().toLowerCase();
@@ -593,7 +563,6 @@ function renderTabel(){
   const thAksi = document.getElementById("thAksi");
   
   if (thAksi) thAksi.style.display = IS_ADMIN_AUTHENTICATED ? "" : "none";
-
   document.getElementById("jumlahData").textContent = `${hasil.length} data`;
 
   if(hasil.length===0){
@@ -628,48 +597,27 @@ function renderTabel(){
     tbody.querySelectorAll(".btnHapusKunjungan").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         const idTarget = btn.dataset.id;
-        if(!confirm("Hapus data kunjungan ini? Data di Spreadsheet juga akan dihapus secara permanen.")) return;
-        
-        toast("⏳ Menghapus dari server Spreadsheet...");
+        if(!confirm("Hapus data kunjungan ini?")) return;
 
-        if (typeof GOOGLE_SCRIPT_URL !== "undefined" && GOOGLE_SCRIPT_URL !== "") {
+        if (GOOGLE_SCRIPT_URL) {
           try {
-            const formData = new URLSearchParams();
-            formData.append("action", "HAPUS_KUNJUNGAN");
-            formData.append("id", idTarget);
-
-            const response = await fetch(GOOGLE_SCRIPT_URL, { 
-              method: "POST", 
-              body: formData 
+            await fetch(GOOGLE_SCRIPT_URL, {
+              method: "POST",
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
+              body: JSON.stringify({ action: "HAPUS_KUNJUNGAN", id: idTarget })
             });
-            
-            const resData = await response.json();
-
-            if (resData.status === "success") {
-              state.kunjunganAktif = state.kunjunganAktif.filter(r => String(r.id).trim() !== String(idTarget).trim());
-              simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
-              renderTabel();
-              toast("✅ Data berhasil dihapus dari Spreadsheet.");
-            } else {
-              alert("Gagal menghapus di Spreadsheet: " + resData.message);
-              toast("❌ Gagal menghapus di server.");
-            }
-          } catch (err) {
-            console.error("Gagal koneksi saat menghapus:", err);
-            alert("Terjadi kesalahan koneksi ke server. Data belum terhapus di Spreadsheet.");
-          }
-        } else {
-          state.kunjunganAktif = state.kunjunganAktif.filter(r => String(r.id).trim() !== String(idTarget).trim());
-          simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
-          renderTabel();
-          toast("Data terhapus (mode lokal).");
+          } catch(err) { console.error(err); }
         }
+
+        state.kunjunganAktif = state.kunjunganAktif.filter(r => String(r.id) !== String(idTarget));
+        simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
+        renderTabel();
+        toast("✅ Data terhapus.");
       });
     });
   }
 }
 
-/* ====================== MODE TAMPILAN ====================== */
 function terapkanModeTampilan(){
   const modeArsip = !!state.viewArsipLabel;
   document.getElementById("archiveBanner").classList.toggle("hidden", !modeArsip);
@@ -683,7 +631,6 @@ function terapkanModeTampilan(){
   renderTabel();
 }
 
-/* ====================== CONTROL HAK AKSES (PUBLIK / ADMIN) ====================== */
 function aturAksesPeran(){
   const urlParams = new URLSearchParams(window.location.search);
   const isAdminRequest = urlParams.get('mode') === 'admin';
@@ -697,7 +644,7 @@ function aturAksesPeran(){
     if (inputPin.trim() === String(PIN_ADMIN).trim()) {
       IS_ADMIN_AUTHENTICATED = true;
     } else {
-      alert("PIN Salah! Anda tidak diperbolehkan masuk ke Mode Admin.");
+      alert("PIN Salah!");
       window.location.href = window.location.pathname;
       return;
     }
@@ -732,7 +679,6 @@ function aturAksesPeran(){
   }
 }
 
-/* ====================== INISIALISASI FORM ====================== */
 function siapkanForm(){
   isiDropdownKelas(document.getElementById("kunjunganKelas"), false);
   isiDropdownKelas(document.getElementById("siswaKelas"), false);
@@ -741,14 +687,9 @@ function siapkanForm(){
   isiDropdownKelas(document.getElementById("filterKelas"), true);
 }
 
-/* ====================== EVENT LISTENERS ====================== */
-document.getElementById("kunjunganKelas").addEventListener("change", ()=>{
-  renderDropdownSiswaKunjungan();
-});
-
-document.getElementById("siswaFilterKelas").addEventListener("change", ()=>{
-  renderDaftarSiswaKelas();
-});
+// LISTENERS
+document.getElementById("kunjunganKelas").addEventListener("change", renderDropdownSiswaKunjungan);
+document.getElementById("siswaFilterKelas").addEventListener("change", renderDaftarSiswaKelas);
 
 // SUBMIT KUNJUNGAN
 document.getElementById("formKunjungan").addEventListener("submit", async (e) => {
@@ -756,10 +697,12 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
   
   const siswaId = document.getElementById("kunjunganSiswa").value;
   const keluhan = document.getElementById("kunjunganKeluhan").value.trim();
-  const siswaObj = state.siswa.find(s => s.id === siswaId);
+  
+  // Pencarian aman: Cek id atau nama
+  const siswaObj = state.siswa.find(s => String(s.id) === String(siswaId));
 
   if (!siswaObj || !keluhan) {
-    toast("Pilih siswa dan isi keluhan.");
+    toast("⚠️ Pilih siswa dan isi keluhan.");
     return;
   }
 
@@ -779,37 +722,26 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
     dicatatPada: now.toISOString()
   };
 
-  // 1. Simpan ke Lokal
+  // 1. Simpan Lokal
   state.kunjunganAktif.push(record);
   simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
   
   document.getElementById("kunjunganKeluhan").value = "";
   renderTabel();
-  toast(`✅ Kunjungan ${siswaObj.nama} berhasil dicatat.`);
+  toast(`✅ Kunjungan ${siswaObj.nama} dicatat.`);
 
-  // 2. Kirim ke Online (Google Apps Script)
-  if (typeof GOOGLE_SCRIPT_URL !== "undefined" && GOOGLE_SCRIPT_URL !== "") {
+  // 2. Kirim Server
+  if (GOOGLE_SCRIPT_URL) {
     try {
-      const formData = new URLSearchParams();
-      formData.append("action", "TAMBAH_KUNJUNGAN");
-      formData.append("id", record.id);
-      formData.append("tanggal", record.tanggal);
-      formData.append("hari", record.hari);
-      formData.append("jam", record.jam);
-      formData.append("jp", record.jp);
-      formData.append("kelas", record.kelas);
-      formData.append("nama", record.nama);
-      formData.append("keluhan", record.keluhan);
-      formData.append("dicatatPada", record.dicatatPada);
-
       await fetch(GOOGLE_SCRIPT_URL, {
         method: "POST",
-        body: formData
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "TAMBAH_KUNJUNGAN", ...record })
       });
       toast("☁️ Data tersinkron ke Spreadsheet.");
     } catch (err) {
-      console.error("Gagal sinkronkan ke Spreadsheet:", err);
-      toast("⚠️ Data tersimpan di browser, tetapi gagal tersinkron ke Spreadsheet.");
+      console.error(err);
+      toast("⚠️ Tersimpan lokal (Gagal sync server).");
     }
   }
 });
@@ -836,27 +768,22 @@ document.getElementById("formSiswa").addEventListener("submit", (e) => {
   renderDropdownSiswaKunjungan();
   toast(`✅ ${nama} berhasil ditambahkan.`);
 
-  // Kirim siswa baru ke Online jika URL dikonfigurasi
-  if (typeof GOOGLE_SCRIPT_URL !== "undefined" && GOOGLE_SCRIPT_URL !== "") {
-    const formData = new URLSearchParams();
-    formData.append("action", "TAMBAH_SISWA");
-    formData.append("id", baru.id);
-    formData.append("kelas", baru.kelas);
-    formData.append("nama", baru.nama);
-
-    fetch(GOOGLE_SCRIPT_URL, { method: "POST", body: formData })
-      .catch(err => console.error("Gagal sync data siswa:", err));
+  if (GOOGLE_SCRIPT_URL) {
+    fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "TAMBAH_SISWA", ...baru })
+    }).catch(err => console.error(err));
   }
 });
 
-// BEKUKAN PERIODE (ARSIP)
+// BEKUKAN ARSIP
 document.getElementById("btnBekukan").addEventListener("click", () => {
   if (state.kunjunganAktif.length === 0) {
     alert("Tidak ada data kunjungan untuk dibekukan.");
     return;
   }
-
-  const labelInput = prompt("Masukkan Nama / Label Periode baru (misal: Periode 2027 - 2028):");
+  const labelInput = prompt("Masukkan Label Periode baru:");
   if (!labelInput || !labelInput.trim()) return;
 
   const labelBaru = labelInput.trim();
@@ -879,7 +806,6 @@ document.getElementById("btnBekukan").addEventListener("click", () => {
   toast("🔒 Periode berhasil dibekukan.");
 });
 
-// EVENT LISTENER PERUBAHAN PERIODE & FILTER
 document.getElementById("pilihPeriode").addEventListener("change", (e) => {
   state.viewArsipLabel = e.target.value || null;
   terapkanModeTampilan();
@@ -904,7 +830,6 @@ document.getElementById("btnResetFilter").addEventListener("click", () => {
   renderTabel();
 });
 
-/* ====================== INITIAL LOAD ====================== */
 window.addEventListener("DOMContentLoaded", () => {
   aturAksesPeran();
   siapkanForm();
