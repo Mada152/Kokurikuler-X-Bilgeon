@@ -382,13 +382,11 @@ function bersihkanFormatJam(jamRaw){
   if(!jamRaw) return "--:--";
   let str = String(jamRaw).trim();
   
-  // Jika terbaca string Date lengkap (contoh: Sat Dec 30 1899 14:57:00 GMT...)
   if(str.includes("1899") || str.includes("GMT") || str.includes("T")){
     const match = str.match(/(\d{2}):(\d{2})/);
     if(match) return `${match[1]}:${match[2]}`;
   }
   
-  // Jika format normal HH:mm atau HH:mm:ss
   const p = str.split(":");
   if(p.length >= 2){
     return `${pad(parseInt(p[0]))}:${pad(parseInt(p[1]))}`;
@@ -648,7 +646,6 @@ function renderTabel(){
             const resData = await response.json();
 
             if (resData.status === "success") {
-              // Hapus dari state & localStorage HANYA setelah server sukses menghapus
               state.kunjunganAktif = state.kunjunganAktif.filter(r => String(r.id).trim() !== String(idTarget).trim());
               simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
               renderTabel();
@@ -662,7 +659,6 @@ function renderTabel(){
             alert("Terjadi kesalahan koneksi ke server. Data belum terhapus di Spreadsheet.");
           }
         } else {
-          // Jika mode offline/tanpa URL Script
           state.kunjunganAktif = state.kunjunganAktif.filter(r => String(r.id).trim() !== String(idTarget).trim());
           simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
           renderTabel();
@@ -671,6 +667,7 @@ function renderTabel(){
       });
     });
   }
+}
 
 /* ====================== MODE TAMPILAN ====================== */
 function terapkanModeTampilan(){
@@ -754,7 +751,7 @@ document.getElementById("siswaFilterKelas").addEventListener("change", ()=>{
 });
 
 // SUBMIT KUNJUNGAN
-document.getElementById("formKunjungan").addEventListener("submit", (e) => {
+document.getElementById("formKunjungan").addEventListener("submit", async (e) => {
   e.preventDefault();
   
   const siswaId = document.getElementById("kunjunganSiswa").value;
@@ -790,87 +787,86 @@ document.getElementById("formKunjungan").addEventListener("submit", (e) => {
   renderTabel();
   toast(`✅ Kunjungan ${siswaObj.nama} berhasil dicatat.`);
 
-  // 2. Kirim ke Online (format dikirim tegas sebagai teks string)
+  // 2. Kirim ke Online (Google Apps Script)
   if (typeof GOOGLE_SCRIPT_URL !== "undefined" && GOOGLE_SCRIPT_URL !== "") {
-    const formData = new URLSearchParams();
-    Object.keys(record).forEach(key => formData.append(key, String(record[key])));
+    try {
+      const formData = new URLSearchParams();
+      formData.append("action", "TAMBAH_KUNJUNGAN");
+      formData.append("id", record.id);
+      formData.append("tanggal", record.tanggal);
+      formData.append("hari", record.hari);
+      formData.append("jam", record.jam);
+      formData.append("jp", record.jp);
+      formData.append("kelas", record.kelas);
+      formData.append("nama", record.nama);
+      formData.append("keluhan", record.keluhan);
+      formData.append("dicatatPada", record.dicatatPada);
 
-    fetch(GOOGLE_SCRIPT_URL, { 
-      method: "POST", 
-      body: formData 
-    }).catch(err => console.warn("Kunjungan tersimpan lokal, gagal sync online:", err));
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: "POST",
+        body: formData
+      });
+      toast("☁️ Data tersinkron ke Spreadsheet.");
+    } catch (err) {
+      console.error("Gagal sinkronkan ke Spreadsheet:", err);
+      toast("⚠️ Data tersimpan di browser, tetapi gagal tersinkron ke Spreadsheet.");
+    }
   }
 });
 
-// SUBMIT SISWA
+// SUBMIT SISWA BARU
 document.getElementById("formSiswa").addEventListener("submit", (e) => {
   e.preventDefault();
   const kelas = document.getElementById("siswaKelas").value;
-  const namaInput = document.getElementById("siswaNama");
-  const nama = namaInput.value.trim();
-  
-  if (!kelas || !nama) { 
-    toast("Isi kelas dan nama siswa."); 
-    return; 
-  }
+  const nama = document.getElementById("siswaNama").value.trim();
 
-  const duplikat = state.siswa.some(s => s.kelas === kelas && s.nama.toLowerCase() === nama.toLowerCase());
-  if (duplikat) {
-    toast("Nama siswa sudah terdaftar pada kelas tersebut.");
+  if (!kelas || !nama) {
+    toast("Pilih kelas dan isi nama siswa.");
     return;
   }
 
-  const newSiswa = { id: uid(), kelas, nama, type: "SIMPAN_SISWA" };
-
-  // 1. Simpan ke Lokal
-  state.siswa.push(newSiswa);
+  const baru = { id: uid(), kelas, nama };
+  state.siswa.push(baru);
   simpanKe(STORAGE_KEYS.siswa, state.siswa);
+
+  document.getElementById("siswaNama").value = "";
+  document.getElementById("siswaFilterKelas").value = kelas;
   
-  namaInput.value = "";
   renderDaftarSiswaKelas();
   renderDropdownSiswaKunjungan();
   toast(`✅ ${nama} berhasil ditambahkan.`);
 
-  // 2. Kirim ke Online
+  // Kirim siswa baru ke Online jika URL dikonfigurasi
   if (typeof GOOGLE_SCRIPT_URL !== "undefined" && GOOGLE_SCRIPT_URL !== "") {
     const formData = new URLSearchParams();
-    Object.keys(newSiswa).forEach(key => formData.append(key, String(newSiswa[key])));
+    formData.append("action", "TAMBAH_SISWA");
+    formData.append("id", baru.id);
+    formData.append("kelas", baru.kelas);
+    formData.append("nama", baru.nama);
 
-    fetch(GOOGLE_SCRIPT_URL, { 
-      method: "POST", 
-      body: formData 
-    }).catch(err => console.warn("Siswa tersimpan lokal, gagal sync online:", err));
+    fetch(GOOGLE_SCRIPT_URL, { method: "POST", body: formData })
+      .catch(err => console.error("Gagal sync data siswa:", err));
   }
 });
 
-/* ====================== EVENT: ARSIP PERIODE ====================== */
-function labelPeriodeBerikutnya(labelSekarang){
-  const angka = labelSekarang.match(/\d{4}/g);
-  if(angka && angka.length>=2){
-    const a = parseInt(angka[0],10)+1;
-    const b = parseInt(angka[1],10)+1;
-    return `Periode ${a} - ${b}`;
-  }
-  return "Periode Baru";
-}
-
-document.getElementById("btnBekukan").addEventListener("click", ()=>{
-  if(state.kunjunganAktif.length===0){
-    if(!confirm(`Belum ada data kunjungan pada ${state.periodeAktifLabel}. Tetap bekukan periode ini (kosong) dan mulai periode baru?`)) return;
-  } else {
-    if(!confirm(`Yakin ingin membekukan "${state.periodeAktifLabel}" dengan ${state.kunjunganAktif.length} data kunjungan?\n\nData yang dibekukan akan disimpan ke arsip dan periode aktif baru akan dimulai.`)) return;
+// BEKUKAN PERIODE (ARSIP)
+document.getElementById("btnBekukan").addEventListener("click", () => {
+  if (state.kunjunganAktif.length === 0) {
+    alert("Tidak ada data kunjungan untuk dibekukan.");
+    return;
   }
 
-  const dataDibekukan = [...state.kunjunganAktif];
-  const labelLama = state.periodeAktifLabel;
-  const labelBaru = labelPeriodeBerikutnya(labelLama);
+  const labelInput = prompt("Masukkan Nama / Label Periode baru (misal: Periode 2027 - 2028):");
+  if (!labelInput || !labelInput.trim()) return;
 
-  state.arsip.push({
-    label: labelLama,
+  const labelBaru = labelInput.trim();
+  const dibekukan = {
+    label: state.periodeAktifLabel,
     dibekukanPada: new Date().toISOString(),
-    data: dataDibekukan
-  });
+    data: [...state.kunjunganAktif]
+  };
 
+  state.arsip.push(dibekukan);
   state.kunjunganAktif = [];
   state.periodeAktifLabel = labelBaru;
 
@@ -879,29 +875,28 @@ document.getElementById("btnBekukan").addEventListener("click", ()=>{
   simpanKe(STORAGE_KEYS.periodeLabel, state.periodeAktifLabel);
 
   renderDropdownPeriode();
-  renderBadgePeriode();
-  renderTabel();
-  toast(`Periode ${labelLama} dibekukan. Memulai ${labelBaru}.`);
+  terapkanModeTampilan();
+  toast("🔒 Periode berhasil dibekukan.");
 });
 
-document.getElementById("pilihPeriode").addEventListener("change", (e)=>{
-  const val = e.target.value;
-  state.viewArsipLabel = val || null;
+// EVENT LISTENER PERUBAHAN PERIODE & FILTER
+document.getElementById("pilihPeriode").addEventListener("change", (e) => {
+  state.viewArsipLabel = e.target.value || null;
   terapkanModeTampilan();
 });
 
-document.getElementById("btnKembaliAktif").addEventListener("click", ()=>{
+document.getElementById("btnKembaliAktif").addEventListener("click", () => {
   state.viewArsipLabel = null;
-  renderDropdownPeriode();
+  document.getElementById("pilihPeriode").value = "";
   terapkanModeTampilan();
 });
 
-// FILTER EVENTS
 document.getElementById("filterCari").addEventListener("input", renderTabel);
 document.getElementById("filterKelas").addEventListener("change", renderTabel);
 document.getElementById("filterDari").addEventListener("change", renderTabel);
 document.getElementById("filterSampai").addEventListener("change", renderTabel);
-document.getElementById("btnResetFilter").addEventListener("click", ()=>{
+
+document.getElementById("btnResetFilter").addEventListener("click", () => {
   document.getElementById("filterCari").value = "";
   document.getElementById("filterKelas").value = "";
   document.getElementById("filterDari").value = "";
@@ -909,14 +904,14 @@ document.getElementById("btnResetFilter").addEventListener("click", ()=>{
   renderTabel();
 });
 
-/* ====================== JALANKAN SAAT STARTUP ====================== */
-window.addEventListener("DOMContentLoaded", ()=>{
+/* ====================== INITIAL LOAD ====================== */
+window.addEventListener("DOMContentLoaded", () => {
   aturAksesPeran();
   siapkanForm();
   muatSemuaData();
   renderDaftarSiswaKelas();
   renderDropdownPeriode();
-  renderBadgePeriode();
+  terapkanModeTampilan();
   tickJam();
 });
 </script>
