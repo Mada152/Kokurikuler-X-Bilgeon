@@ -686,87 +686,83 @@ document.getElementById("kunjunganKelas").addEventListener("change", ()=>{
   document.getElementById("kunjunganSiswa").disabled = !document.getElementById("kunjunganKelas").value;
 });
 
-document.getElementById("formKunjungan").addEventListener("submit", (e)=>{
+document.getElementById("formKunjungan").addEventListener("submit", (e) => {
   e.preventDefault();
-  if(state.viewArsipLabel) return;
+  
+  const siswaId = document.getElementById("kunjunganSiswaId").value;
+  const keluhan = document.getElementById("kunjunganKeluhan").value;
+  const siswaObj = state.siswa.find(s => s.id === siswaId);
 
-  const kelas = document.getElementById("kunjunganKelas").value;
-  const siswaId = document.getElementById("kunjunganSiswa").value;
-  const keluhan = document.getElementById("kunjunganKeluhan").value.trim();
-  const siswaObj = state.siswa.find(s=>s.id===siswaId);
-
-  if(!kelas || !siswaObj || !keluhan){
-    toast("Lengkapi kelas, nama siswa, dan keluhan terlebih dahulu.");
+  if (!siswaObj || !keluhan) {
+    toast("Pilih siswa dan isi keluhan.");
     return;
   }
 
   const now = new Date();
-  const tanggal = formatTanggal(now);
-  const hari = HARI_INDO[now.getDay()];
-  const jam = formatJam(now);
-  const jp = tentukanJP(hari, jam);
-
   const record = {
     id: uid(),
-    tanggal, hari, jam, jp,
-    kelas, nama: siswaObj.nama,
-    keluhan,
-    dicatatPada: now.toISOString(),
+    tanggal: now.toISOString().split("T")[0],
+    hari: getNamaHari(now),
+    jam: getFormatJam(now),
+    jp: document.getElementById("kunjunganJP") ? document.getElementById("kunjunganJP").value : "",
+    kelas: siswaObj.kelas,
+    nama: siswaObj.nama,
+    keluhan: keluhan,
+    dicatatPada: now.toISOString()
   };
 
-  // 1. Simpan Lokal
+  // 1. Simpan ke Lokal
   state.kunjunganAktif.push(record);
   simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
-  renderTabel();
+  
   document.getElementById("kunjunganKeluhan").value = "";
-  document.getElementById("kunjunganSiswa").value = "";
+  renderTabel();
+  toast(`✅ Kunjungan ${siswaObj.nama} berhasil dicatat.`);
 
-  // 2. Kirim ke Google Sheets Online
-  if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== "") {
-    fetch(GOOGLE_SCRIPT_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(record)
-    })
-    .then(() => toast(`✅ Kunjungan ${siswaObj.nama} berhasil dikirim ke Google Sheets.`))
-    .catch((err) => {
-      console.error(err);
-      toast(`Tersimpan lokal (gagal terhubung server).`);
-    });
-  } else {
-    toast(`Kunjungan ${siswaObj.nama} tersimpan lokal.`);
+  // 2. Kirim ke Online
+  if (typeof GOOGLE_SCRIPT_URL !== "undefined" && GOOGLE_SCRIPT_URL !== "") {
+    const formData = new URLSearchParams();
+    Object.keys(record).forEach(key => formData.append(key, record[key]));
+
+    fetch(GOOGLE_SCRIPT_URL, { 
+      method: "POST", 
+      body: formData 
+    }).catch(err => console.warn("Kunjungan tersimpan lokal, gagal sync online:", err));
   }
 });
 
 /* ====================== EVENT: FORM SISWA ====================== */
-document.getElementById("formSiswa").addEventListener("submit", (e)=>{
+document.getElementById("formSiswa").addEventListener("submit", (e) => {
   e.preventDefault();
   const kelas = document.getElementById("siswaKelas").value;
   const namaInput = document.getElementById("siswaNama");
   const nama = namaInput.value.trim();
-  if(!kelas || !nama){ toast("Isi kelas dan nama siswa."); return; }
-
-  const duplikat = state.siswa.some(s=>s.kelas===kelas && s.nama.toLowerCase()===nama.toLowerCase());
-  if(duplikat){ toast("Nama siswa ini sudah terdaftar di kelas tersebut."); return; }
+  
+  if (!kelas || !nama) { 
+    toast("Isi kelas dan nama siswa."); 
+    return; 
+  }
 
   const newSiswa = { id: uid(), kelas, nama, type: "SIMPAN_SISWA" };
 
+  // 1. Simpan ke Lokal Terlebih Dahulu (Pasti Berhasil)
   state.siswa.push(newSiswa);
   simpanKe(STORAGE_KEYS.siswa, state.siswa);
   
   namaInput.value = "";
-  document.getElementById("siswaFilterKelas").value = kelas;
   renderDaftarSiswaKelas();
   renderDropdownSiswaKunjungan();
+  toast(`✅ ${nama} berhasil ditambahkan.`);
 
-  // Kirim Siswa Baru ke Google Sheets
-  if (GOOGLE_SCRIPT_URL) {
+  // 2. Kirim ke Online di Latar Belakang
+  if (typeof GOOGLE_SCRIPT_URL !== "undefined" && GOOGLE_SCRIPT_URL !== "") {
     const formData = new URLSearchParams();
     Object.keys(newSiswa).forEach(key => formData.append(key, newSiswa[key]));
-    fetch(GOOGLE_SCRIPT_URL, { method: "POST", body: formData })
-      .then(() => toast(`✅ ${nama} tersimpan online.`))
-      .catch(() => toast(`Tersimpan lokal.`));
+
+    fetch(GOOGLE_SCRIPT_URL, { 
+      method: "POST", 
+      body: formData 
+    }).catch(err => console.warn("Siswa tersimpan lokal, gagal sync online:", err));
   }
 });
 /* ====================== EVENT: ARSIP PERIODE ====================== */
