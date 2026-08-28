@@ -109,11 +109,13 @@
 </head>
 <body class="pb-16">
 
+<!-- HEADER / LOBBY APLIKASI DENGAN LINK LOGO ONLINE -->
 <header class="border-b border-teal-900/10 bg-gradient-to-r from-[var(--teal-950)] to-[var(--teal-800)] text-white">
   <div class="max-w-7xl mx-auto px-5 py-4 flex flex-wrap items-center justify-between gap-4">
     <div class="flex items-center gap-4">
-      <div class="w-14 h-14 rounded-2xl bg-white p-1 flex items-center justify-center shadow-lg border border-white/30">
-        <img src="logo_sma_banua.png" alt="Logo SMA Banua Kalsel" class="max-h-full max-w-full object-contain" onError="this.src='https://via.placeholder.com/60?text=BANUA'" />
+      <!-- Logo SMA Banua Kalsel via Direct Link -->
+      <div class="w-14 h-14 rounded-2xl bg-white p-1.5 flex items-center justify-center shadow-lg border border-white/30">
+        <img src="https://blogger.googleusercontent.com/img/a/AVvXsEhwOtW9d5f7dgPS7FhpytSdQF5f5nPX0cXux2ocBN1C-P-y10LYTAn7O59sutJrcBOSCqaYYSdhmnTIbAOmS7_j5eYuCk7clD3VKHsrsJEEPigCUW8B3V5DWjV25dF9dDwKi4UBx8MlYB5nE-IkcugvyC6E27AdhKX5YuwyawpT9D1BfAxo4Ht2Pj0KDiud=s1600" alt="Logo SMA Banua Kalsel" class="max-h-full max-w-full object-contain" />
       </div>
       <div>
         <div class="flex items-center gap-2">
@@ -138,13 +140,16 @@
 
 <main class="max-w-7xl mx-auto px-5 mt-6 grid grid-cols-1 lg:grid-cols-5 gap-5">
 
+  <!-- KOLOM KIRI: FORM & MANAJEMEN DATA -->
   <div class="lg:col-span-2 flex flex-col gap-5">
+    <!-- Banner mode arsip -->
     <div id="archiveBanner" class="hidden card p-4 border-amber-300 bg-[var(--amber-soft)] fade-in">
       <p class="text-sm font-700 text-[var(--amber)]">📁 Sedang menampilkan arsip (mode baca saja)</p>
       <p class="text-xs text-teal-900/60 mt-1">Formulir kunjungan dinonaktifkan. Kembali ke periode aktif untuk mencatat data baru.</p>
       <button id="btnKembaliAktif" class="btn-primary text-xs px-3 py-1.5 mt-3">← Kembali ke Periode Aktif</button>
     </div>
 
+    <!-- Form Kunjungan -->
     <section class="card p-5">
       <div class="flex items-center gap-2 mb-4">
         <span class="text-lg">📝</span>
@@ -178,6 +183,7 @@
       </form>
     </section>
 
+    <!-- Manajemen Siswa -->
     <section class="card p-5">
       <div class="flex items-center gap-2 mb-4">
         <span class="text-lg">🎓</span>
@@ -194,6 +200,7 @@
       <div id="daftarSiswaKelas" class="max-h-56 overflow-y-auto divide-y divide-teal-900/5 rounded-lg border border-teal-900/10"></div>
     </section>
 
+    <!-- Arsip Periode -->
     <section class="card p-5">
       <div class="flex items-center gap-2 mb-4">
         <span class="text-lg">🗄️</span>
@@ -207,6 +214,7 @@
     </section>
   </div>
 
+  <!-- KOLOM KANAN: TABEL KUNJUNGAN -->
   <div class="lg:col-span-3">
     <section class="card p-5 relative overflow-hidden">
       <div id="stampArsip" class="stamp hidden">Arsip · Baca Saja</div>
@@ -217,6 +225,7 @@
         <span id="jumlahData" class="ml-auto text-xs font-mono text-teal-900/50"></span>
       </div>
 
+      <!-- Filter -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
         <div class="col-span-2 sm:col-span-1">
           <label class="label-field">Cari</label>
@@ -265,7 +274,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxVCP7Wphh5ML8RVMdrLvKMChSxASimdOxLrgpSRIIolEtW_ik_1AWYUgFiSnuD-CZz-g/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzmVtfKu9mXa2aUhyVURbAeGH9pwN44FDdhuyBRd86hwgwsaiXWOIasmdIDEFBudYwqJQ/exec";
 const PIN_ADMIN = "DIVING";
 
 const JP_SCHEDULE_DEFAULT = [
@@ -385,24 +394,24 @@ function muatSemuaData(){
   state.arsip = ambilDari(STORAGE_KEYS.arsip, []);
   state.periodeAktifLabel = ambilDari(STORAGE_KEYS.periodeLabel, "Periode 2026 - 2027");
 
-  // Pastikan siswa lokal punya ID unik
-  state.siswa = state.siswa.map((s, idx) => ({
-    id: s.id || `siswa-local-${idx}-${s.nama}`,
-    nama: s.nama,
-    kelas: s.kelas
-  }));
+  // Render awal instan dari data penyimpanan lokal
+  renderDaftarSiswaKelas();
+  renderDropdownSiswaKunjungan();
+  renderTabel();
 
   if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== "") {
-    toast("🔄 Menghubungkan ke server...");
-    fetch(GOOGLE_SCRIPT_URL)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000); // Mencegah loading selamanya (timeout 4 detik)
+
+    fetch(GOOGLE_SCRIPT_URL, { signal: controller.signal })
       .then(res => res.json())
       .then(data => {
+        clearTimeout(timeoutId);
         if (data.kunjungan && Array.isArray(data.kunjungan)) {
           state.kunjunganAktif = data.kunjungan;
           simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
         }
         if (data.siswa && Array.isArray(data.siswa) && data.siswa.length > 0) {
-          // Buat ID unik untuk data siswa dari Spreadsheet jika belum ada ID
           state.siswa = data.siswa.map((s, idx) => ({
             id: s.id || `siswa-sheet-${idx}-${s.nama}`,
             nama: s.nama,
@@ -413,9 +422,11 @@ function muatSemuaData(){
         renderDaftarSiswaKelas();
         renderDropdownSiswaKunjungan();
         renderTabel();
-        toast("✅ Data berhasil disinkronkan.");
+        toast("✅ Data disinkronkan.");
       })
-      .catch(err => console.warn("Modus Offline / Server Error:", err));
+      .catch(err => {
+        console.warn("Server offline/timeout. Aplikasi berjalan dalam mode lokal:", err);
+      });
   }
 }
 
@@ -504,15 +515,24 @@ function renderDaftarSiswaKelas(){
     </div>
   `).join("");
   wrap.querySelectorAll(".btnHapusSiswa").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
+    btn.addEventListener("click", async ()=>{
       const id = btn.dataset.id;
       const target = state.siswa.find(s=>s.id===id);
       if(!confirm(`Hapus "${target?.nama}" dari data master siswa?`)) return;
+
+      if (GOOGLE_SCRIPT_URL) {
+        fetch(GOOGLE_SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "HAPUS_SISWA", id: id, nama: target?.nama })
+        }).catch(err => console.error(err));
+      }
+
       state.siswa = state.siswa.filter(s=>s.id!==id);
       simpanKe(STORAGE_KEYS.siswa, state.siswa);
       renderDaftarSiswaKelas();
       renderDropdownSiswaKunjungan();
-      toast("Siswa dihapus dari data master.");
+      toast("Siswa dihapus.");
     });
   });
 }
@@ -694,7 +714,6 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
   
   const siswaId = document.getElementById("kunjunganSiswa").value;
   const keluhan = document.getElementById("kunjunganKeluhan").value.trim();
-  
   const siswaObj = state.siswa.find(s => String(s.id) === String(siswaId));
 
   if (!siswaObj || !keluhan) {
@@ -718,7 +737,6 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
     dicatatPada: now.toISOString()
   };
 
-  // 1. Simpan Lokal
   state.kunjunganAktif.push(record);
   simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
   
@@ -726,7 +744,6 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
   renderTabel();
   toast(`✅ Kunjungan ${siswaObj.nama} dicatat.`);
 
-  // 2. Kirim Server
   if (GOOGLE_SCRIPT_URL) {
     try {
       await fetch(GOOGLE_SCRIPT_URL, {
