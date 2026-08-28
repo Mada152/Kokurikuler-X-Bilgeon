@@ -109,14 +109,18 @@
 </head>
 <body class="pb-16">
 
-<!-- HEADER -->
 <header class="border-b border-teal-900/10 bg-gradient-to-r from-[var(--teal-950)] to-[var(--teal-800)] text-white">
-  <div class="max-w-7xl mx-auto px-5 py-5 flex flex-wrap items-center justify-between gap-4">
-    <div class="flex items-center gap-3">
-      <div class="w-11 h-11 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-xl">🩺</div>
+  <div class="max-w-7xl mx-auto px-5 py-4 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl bg-white p-1 flex items-center justify-center shadow-lg border border-white/30">
+        <img src="logo_sma_banua.png" alt="Logo SMA Banua Kalsel" class="max-h-full max-w-full object-contain" onError="this.src='https://via.placeholder.com/60?text=BANUA'" />
+      </div>
       <div>
-        <h1 class="font-display text-xl font-800 leading-tight">SIMPOLI</h1>
-        <p class="text-xs text-teal-100/70 -mt-0.5">Sistem Pencatatan Kunjungan Poliklinik Sekolah</p>
+        <div class="flex items-center gap-2">
+          <h1 class="font-display text-xl font-800 leading-tight tracking-wide">SMA BANUA KALSEL</h1>
+          <span class="text-[10px] bg-teal-500/30 border border-teal-400/40 text-teal-200 px-2 py-0.5 rounded-md font-mono font-600">BILINGUAL BOARDING SCHOOL</span>
+        </div>
+        <p class="text-xs text-teal-100/70 mt-0.5 font-medium">SIMPOLI &mdash; Sistem Pencatatan Kunjungan Poliklinik Sekolah</p>
       </div>
     </div>
     <div class="flex items-center gap-3">
@@ -125,7 +129,7 @@
         <div id="jamBerjalan" class="text-lg font-700">--:--:--</div>
         <div id="tanggalBerjalan" class="text-[11px] text-teal-100/70">-</div>
       </div>
-      <a id="btnToggleMode" href="?mode=admin" class="btn-ghost text-xs px-3 py-2 bg-white/10 text-white border-white/20 hover:bg-white/20 flex items-center gap-1.5">
+      <a id="btnToggleMode" href="?mode=admin" class="btn-ghost text-xs px-3.5 py-2 bg-white/10 text-white border-white/20 hover:bg-white/20 flex items-center gap-1.5 shadow-sm">
         🔑 Mode Admin
       </a>
     </div>
@@ -134,16 +138,13 @@
 
 <main class="max-w-7xl mx-auto px-5 mt-6 grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-  <!-- KOLOM KIRI -->
   <div class="lg:col-span-2 flex flex-col gap-5">
-    <!-- Banner mode arsip -->
     <div id="archiveBanner" class="hidden card p-4 border-amber-300 bg-[var(--amber-soft)] fade-in">
       <p class="text-sm font-700 text-[var(--amber)]">📁 Sedang menampilkan arsip (mode baca saja)</p>
       <p class="text-xs text-teal-900/60 mt-1">Formulir kunjungan dinonaktifkan. Kembali ke periode aktif untuk mencatat data baru.</p>
       <button id="btnKembaliAktif" class="btn-primary text-xs px-3 py-1.5 mt-3">← Kembali ke Periode Aktif</button>
     </div>
 
-    <!-- Form Kunjungan -->
     <section class="card p-5">
       <div class="flex items-center gap-2 mb-4">
         <span class="text-lg">📝</span>
@@ -177,7 +178,6 @@
       </form>
     </section>
 
-    <!-- Manajemen Siswa -->
     <section class="card p-5">
       <div class="flex items-center gap-2 mb-4">
         <span class="text-lg">🎓</span>
@@ -194,7 +194,6 @@
       <div id="daftarSiswaKelas" class="max-h-56 overflow-y-auto divide-y divide-teal-900/5 rounded-lg border border-teal-900/10"></div>
     </section>
 
-    <!-- Arsip Periode -->
     <section class="card p-5">
       <div class="flex items-center gap-2 mb-4">
         <span class="text-lg">🗄️</span>
@@ -208,7 +207,6 @@
     </section>
   </div>
 
-  <!-- KOLOM KANAN: TABEL -->
   <div class="lg:col-span-3">
     <section class="card p-5 relative overflow-hidden">
       <div id="stampArsip" class="stamp hidden">Arsip · Baca Saja</div>
@@ -219,7 +217,6 @@
         <span id="jumlahData" class="ml-auto text-xs font-mono text-teal-900/50"></span>
       </div>
 
-      <!-- Filter -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
         <div class="col-span-2 sm:col-span-1">
           <label class="label-field">Cari</label>
@@ -268,7 +265,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxq1agYscIqtetefVQr9MgvhjMOhnZe1QpppaX6p4innOiLL-R6-0tPyzLioYH3QdeF3Q/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby6RteguiRuPLNhx_5rq1N5kTRHlyfiIeuSFedKvphz0ZNZLrSZm5b9_50CviPYesvEtQ/exec";
 const PIN_ADMIN = "DIVING";
 
 const JP_SCHEDULE_DEFAULT = [
@@ -388,7 +385,7 @@ function muatSemuaData(){
   state.arsip = ambilDari(STORAGE_KEYS.arsip, []);
   state.periodeAktifLabel = ambilDari(STORAGE_KEYS.periodeLabel, "Periode 2026 - 2027");
 
-  // Pastikan semua data siswa lokal punya id
+  // Pastikan siswa lokal punya ID unik
   state.siswa = state.siswa.map((s, idx) => ({
     id: s.id || `siswa-local-${idx}-${s.nama}`,
     nama: s.nama,
@@ -405,7 +402,7 @@ function muatSemuaData(){
           simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
         }
         if (data.siswa && Array.isArray(data.siswa) && data.siswa.length > 0) {
-          // Normalisasi siswa dari Spreadsheet (Generate ID jika belum ada)
+          // Buat ID unik untuk data siswa dari Spreadsheet jika belum ada ID
           state.siswa = data.siswa.map((s, idx) => ({
             id: s.id || `siswa-sheet-${idx}-${s.nama}`,
             nama: s.nama,
@@ -691,14 +688,13 @@ function siapkanForm(){
 document.getElementById("kunjunganKelas").addEventListener("change", renderDropdownSiswaKunjungan);
 document.getElementById("siswaFilterKelas").addEventListener("change", renderDaftarSiswaKelas);
 
-// SUBMIT KUNJUNGAN
+// SUBMIT KUNJUNGAN BARU
 document.getElementById("formKunjungan").addEventListener("submit", async (e) => {
   e.preventDefault();
   
   const siswaId = document.getElementById("kunjunganSiswa").value;
   const keluhan = document.getElementById("kunjunganKeluhan").value.trim();
   
-  // Pencarian aman: Cek id atau nama
   const siswaObj = state.siswa.find(s => String(s.id) === String(siswaId));
 
   if (!siswaObj || !keluhan) {
@@ -777,7 +773,7 @@ document.getElementById("formSiswa").addEventListener("submit", (e) => {
   }
 });
 
-// BEKUKAN ARSIP
+// BEKUKAN ARSIP PERIODE
 document.getElementById("btnBekukan").addEventListener("click", () => {
   if (state.kunjunganAktif.length === 0) {
     alert("Tidak ada data kunjungan untuk dibekukan.");
