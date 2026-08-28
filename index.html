@@ -628,16 +628,49 @@ function renderTabel(){
 
   if(!modeArsip && IS_ADMIN_AUTHENTICATED){
     tbody.querySelectorAll(".btnHapusKunjungan").forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        if(!confirm("Hapus data kunjungan ini?")) return;
-        state.kunjunganAktif = state.kunjunganAktif.filter(r=>r.id!==btn.dataset.id);
-        simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
-        renderTabel();
-        toast("Data kunjungan dihapus.");
+      btn.addEventListener("click", async ()=>{
+        const idTarget = btn.dataset.id;
+        if(!confirm("Hapus data kunjungan ini? Data di Spreadsheet juga akan dihapus secara permanen.")) return;
+        
+        toast("⏳ Menghapus dari server Spreadsheet...");
+
+        if (typeof GOOGLE_SCRIPT_URL !== "undefined" && GOOGLE_SCRIPT_URL !== "") {
+          try {
+            const formData = new URLSearchParams();
+            formData.append("action", "HAPUS_KUNJUNGAN");
+            formData.append("id", idTarget);
+
+            const response = await fetch(GOOGLE_SCRIPT_URL, { 
+              method: "POST", 
+              body: formData 
+            });
+            
+            const resData = await response.json();
+
+            if (resData.status === "success") {
+              // Hapus dari state & localStorage HANYA setelah server sukses menghapus
+              state.kunjunganAktif = state.kunjunganAktif.filter(r => String(r.id).trim() !== String(idTarget).trim());
+              simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
+              renderTabel();
+              toast("✅ Data berhasil dihapus dari Spreadsheet.");
+            } else {
+              alert("Gagal menghapus di Spreadsheet: " + resData.message);
+              toast("❌ Gagal menghapus di server.");
+            }
+          } catch (err) {
+            console.error("Gagal koneksi saat menghapus:", err);
+            alert("Terjadi kesalahan koneksi ke server. Data belum terhapus di Spreadsheet.");
+          }
+        } else {
+          // Jika mode offline/tanpa URL Script
+          state.kunjunganAktif = state.kunjunganAktif.filter(r => String(r.id).trim() !== String(idTarget).trim());
+          simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
+          renderTabel();
+          toast("Data terhapus (mode lokal).");
+        }
       });
     });
   }
-}
 
 /* ====================== MODE TAMPILAN ====================== */
 function terapkanModeTampilan(){
