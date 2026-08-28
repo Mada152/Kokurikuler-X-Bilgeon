@@ -276,7 +276,7 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwO-pTUJd0swy
 const PIN_ADMIN = "123456";
 
 /* ======================================================================
-   KONFIGURASI JAM PELAJARAN (JP)
+   KONFIGURASI JAM PELAJARAN (JP) - DAPAT DISESUAIKAN NANTI
    ====================================================================== */
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "06:59" },
@@ -312,10 +312,14 @@ function getJadwalHari(hari){
   return JP_SCHEDULE_PER_HARI[hari] || JP_SCHEDULE_DEFAULT;
 }
 
-function tentukanJP(hari, jamHHMM){
+function tentukanJP(hari, jamStr){
+  const jamBersih = bersihkanFormatJam(jamStr);
+  if(!jamBersih || !jamBersih.includes(":")) return "-";
+  
   const jadwal = getJadwalHari(hari);
-  const [h,m] = jamHHMM.split(":").map(Number);
+  const [h,m] = jamBersih.split(":").map(Number);
   const menit = h*60+m;
+
   for(const slot of jadwal){
     const [h1,m1] = slot.mulai.split(":").map(Number);
     const [h2,m2] = slot.selesai.split(":").map(Number);
@@ -325,7 +329,7 @@ function tentukanJP(hari, jamHHMM){
   return "Di luar jadwal";
 }
 
-/* ====================== DATA DASAR & PENOLONG TANGGAL ====================== */
+/* ====================== PENOLONG TANGGAL & JAM ====================== */
 const TINGKAT = ["X","XI","XII"];
 const JURUSAN = ["A","B","C","D"];
 const DAFTAR_KELAS = TINGKAT.flatMap(t => JURUSAN.map(j => `${t} ${j}`));
@@ -365,11 +369,31 @@ function getNamaHari(d){
 
 function formatTanggalTampil(iso){
   if(!iso || iso === "undefined") return "-";
+  if(iso.includes("T")) iso = iso.split("T")[0];
   const p = iso.split("-");
   if(p.length === 3) {
     return `${p[2].substring(0,2)}-${p[1]}-${p[0]}`;
   }
   return iso;
+}
+
+// FUNGSI PEMBERSIH UNTUK MENGATASI BUG 1899 DARI GOOGLE SHEETS
+function bersihkanFormatJam(jamRaw){
+  if(!jamRaw) return "--:--";
+  let str = String(jamRaw).trim();
+  
+  // Jika terbaca string Date lengkap (contoh: Sat Dec 30 1899 14:57:00 GMT...)
+  if(str.includes("1899") || str.includes("GMT") || str.includes("T")){
+    const match = str.match(/(\d{2}):(\d{2})/);
+    if(match) return `${match[1]}:${match[2]}`;
+  }
+  
+  // Jika format normal HH:mm atau HH:mm:ss
+  const p = str.split(":");
+  if(p.length >= 2){
+    return `${pad(parseInt(p[0]))}:${pad(parseInt(p[1]))}`;
+  }
+  return str;
 }
 
 /* ====================== PERSISTENSI & SINKRONISASI ====================== */
@@ -414,7 +438,7 @@ function muatSemuaData(){
           renderDropdownSiswaKunjungan();
         }
         renderTabel();
-        toast("✅ Data Google Sheets berhasil disinkronkan.");
+        toast("✅ Data berhasil disinkronkan.");
       })
       .catch(err => {
         console.warn("Server offline / menggunakan mode lokal:", err);
@@ -563,7 +587,7 @@ function renderTabel(){
 
   hasil = hasil.slice().sort((a,b)=>{
     if(a.tanggal !== b.tanggal) return b.tanggal.localeCompare(a.tanggal);
-    return b.jam.localeCompare(a.jam);
+    return String(b.jam).localeCompare(String(a.jam));
   });
 
   const tbody = document.getElementById("tabelBody");
@@ -583,19 +607,24 @@ function renderTabel(){
 
   const modeArsip = !!state.viewArsipLabel;
 
-  tbody.innerHTML = hasil.map((row,idx)=>`
-    <tr class="fade-in">
-      <td class="font-mono text-teal-900/50">${idx+1}</td>
-      <td class="font-mono">${formatTanggalTampil(row.tanggal)}</td>
-      <td>${row.hari}</td>
-      <td class="font-mono">${row.jam}</td>
-      <td><span class="badge ${row.jp.includes('luar')||row.jp.includes('Sebelum')||row.jp.includes('Setelah') ? 'badge-jp-off':'badge-jp'}">${row.jp}</span></td>
-      <td><span class="font-600">${row.kelas}</span></td>
-      <td><span class="font-600">${row.nama}</span></td>
-      <td class="max-w-xs whitespace-pre-wrap text-teal-900/80">${row.keluhan}</td>
-      ${IS_ADMIN_AUTHENTICATED ? `<td>${modeArsip ? "" : `<button data-id="${row.id}" class="btnHapusKunjungan text-rose-500 hover:text-rose-700 text-xs">✕ Hapus</button>`}</td>` : ""}
-    </tr>
-  `).join("");
+  tbody.innerHTML = hasil.map((row,idx)=>{
+    const jamBersih = bersihkanFormatJam(row.jam);
+    const jpTampil = tentukanJP(row.hari, jamBersih);
+
+    return `
+      <tr class="fade-in">
+        <td class="font-mono text-teal-900/50">${idx+1}</td>
+        <td class="font-mono">${formatTanggalTampil(row.tanggal)}</td>
+        <td>${row.hari || '-'}</td>
+        <td class="font-mono">${jamBersih}</td>
+        <td><span class="badge ${jpTampil.includes('luar')||jpTampil.includes('Sebelum')||jpTampil.includes('Setelah') ? 'badge-jp-off':'badge-jp'}">${jpTampil}</span></td>
+        <td><span class="font-600">${row.kelas}</span></td>
+        <td><span class="font-600">${row.nama}</span></td>
+        <td class="max-w-xs whitespace-pre-wrap text-teal-900/80">${row.keluhan}</td>
+        ${IS_ADMIN_AUTHENTICATED ? `<td>${modeArsip ? "" : `<button data-id="${row.id}" class="btnHapusKunjungan text-rose-500 hover:text-rose-700 text-xs">✕ Hapus</button>`}</td>` : ""}
+      </tr>
+    `;
+  }).join("");
 
   if(!modeArsip && IS_ADMIN_AUTHENTICATED){
     tbody.querySelectorAll(".btnHapusKunjungan").forEach(btn=>{
@@ -728,10 +757,10 @@ document.getElementById("formKunjungan").addEventListener("submit", (e) => {
   renderTabel();
   toast(`✅ Kunjungan ${siswaObj.nama} berhasil dicatat.`);
 
-  // 2. Kirim ke Online
+  // 2. Kirim ke Online (format dikirim tegas sebagai teks string)
   if (typeof GOOGLE_SCRIPT_URL !== "undefined" && GOOGLE_SCRIPT_URL !== "") {
     const formData = new URLSearchParams();
-    Object.keys(record).forEach(key => formData.append(key, record[key]));
+    Object.keys(record).forEach(key => formData.append(key, String(record[key])));
 
     fetch(GOOGLE_SCRIPT_URL, { 
       method: "POST", 
@@ -772,7 +801,7 @@ document.getElementById("formSiswa").addEventListener("submit", (e) => {
   // 2. Kirim ke Online
   if (typeof GOOGLE_SCRIPT_URL !== "undefined" && GOOGLE_SCRIPT_URL !== "") {
     const formData = new URLSearchParams();
-    Object.keys(newSiswa).forEach(key => formData.append(key, newSiswa[key]));
+    Object.keys(newSiswa).forEach(key => formData.append(key, String(newSiswa[key])));
 
     fetch(GOOGLE_SCRIPT_URL, { 
       method: "POST", 
