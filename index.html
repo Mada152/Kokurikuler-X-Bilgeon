@@ -275,7 +275,6 @@
 
 <script>
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZCSzJfycRodeA3r2sR_MtUADl73o7OlxDDWYFIeEGigYGhlSZ705pvjSMl3mfi8elRQ/exec";
-const PIN_ADMIN = "DIVING";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -667,7 +666,8 @@ function terapkanModeTampilan(){
   renderTabel();
 }
 
-function aturAksesPeran(){
+// FUNGSI VERIFIKASI PIN ADMIN SERVER-SIDE
+async function aturAksesPeran(){
   const urlParams = new URLSearchParams(window.location.search);
   const isAdminRequest = urlParams.get('mode') === 'admin';
   
@@ -677,10 +677,26 @@ function aturAksesPeran(){
       window.location.href = window.location.pathname;
       return;
     }
-    if (inputPin.trim() === String(PIN_ADMIN).trim()) {
-      IS_ADMIN_AUTHENTICATED = true;
-    } else {
-      alert("PIN Salah!");
+    
+    try {
+      toast("⌛ Memverifikasi PIN...");
+      const response = await fetch(GOOGLE_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "VERIFIKASI_PIN", pin: inputPin.trim() })
+      });
+      const result = await response.json();
+      
+      if (result.success || result.status === "success") {
+        IS_ADMIN_AUTHENTICATED = true;
+        toast("🔑 Akses Admin Diterima");
+      } else {
+        alert("PIN Salah!");
+        window.location.href = window.location.pathname;
+        return;
+      }
+    } catch (error) {
+      alert("Gagal terhubung ke server verifikasi.");
       window.location.href = window.location.pathname;
       return;
     }
@@ -688,6 +704,10 @@ function aturAksesPeran(){
     IS_ADMIN_AUTHENTICATED = false;
   }
   
+  updateTampilanUI();
+}
+
+function updateTampilanUI() {
   const kolomKiri = document.querySelector('main > div.lg\\:col-span-2');
   const kolomTabel = document.querySelector('main > div.lg\\:col-span-3');
   const btnToggle = document.getElementById('btnToggleMode');
@@ -713,6 +733,7 @@ function aturAksesPeran(){
       btnToggle.innerHTML = '🚪 Keluar Admin';
     }
   }
+  renderTabel();
 }
 
 function siapkanForm(){
@@ -862,8 +883,8 @@ document.getElementById("btnResetFilter").addEventListener("click", () => {
   renderTabel();
 });
 
-window.addEventListener("DOMContentLoaded", () => {
-  aturAksesPeran();
+window.addEventListener("DOMContentLoaded", async () => {
+  await aturAksesPeran();
   siapkanForm();
   muatSemuaData();
   renderDaftarSiswaKelas();
