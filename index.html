@@ -109,7 +109,7 @@
 </head>
 <body class="pb-16">
 
-<!-- HEADER / LOBBY APLIKASI DENGAN LINK LOGO ONLINE -->
+<!-- HEADER / LOBBY APLIKASI -->
 <header class="border-b border-teal-900/10 bg-gradient-to-r from-[var(--teal-950)] to-[var(--teal-800)] text-white">
   <div class="max-w-7xl mx-auto px-5 py-4 flex flex-wrap items-center justify-between gap-4">
     <div class="flex items-center gap-4">
@@ -130,17 +130,17 @@
         <div id="jamBerjalan" class="text-lg font-700">--:--:--</div>
         <div id="tanggalBerjalan" class="text-[11px] text-teal-100/70">-</div>
       </div>
-      <a id="btnToggleMode" href="?mode=admin" class="btn-ghost text-xs px-3.5 py-2 bg-white/10 text-white border-white/20 hover:bg-white/20 flex items-center gap-1.5 shadow-sm">
+      <button id="btnToggleMode" type="button" class="btn-ghost text-xs px-3.5 py-2 bg-white/10 text-white border-white/20 hover:bg-white/20 flex items-center gap-1.5 shadow-sm">
         🔑 Mode Admin
-      </a>
+      </button>
     </div>
   </div>
 </header>
 
 <main class="max-w-7xl mx-auto px-5 mt-6 grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-  <!-- KOLOM KIRI: FORM & MANAJEMEN DATA -->
-  <div class="lg:col-span-2 flex flex-col gap-5">
+  <!-- KOLOM KIRI: FORM & MANAJEMEN DATA (HANYA MUNCUL DI MODE ADMIN) -->
+  <div id="kolomKiri" class="lg:col-span-2 flex flex-col gap-5">
     <!-- Banner mode arsip -->
     <div id="archiveBanner" class="hidden card p-4 border-amber-300 bg-[var(--amber-soft)] fade-in">
       <p class="text-sm font-700 text-[var(--amber)]">📁 Sedang menampilkan arsip (mode baca saja)</p>
@@ -214,7 +214,7 @@
   </div>
 
   <!-- KOLOM KANAN: TABEL KUNJUNGAN -->
-  <div class="lg:col-span-3">
+  <div id="kolomTabel" class="lg:col-span-3">
     <section class="card p-5 relative overflow-hidden">
       <div id="stampArsip" class="stamp hidden">Arsip · Baca Saja</div>
 
@@ -269,7 +269,7 @@
   </div>
 </main>
 
-<!-- MODAL KONFIRMASI HAPUS KUSTOM -->
+<!-- MODAL KONFIRMASI HAPUS -->
 <div id="deleteModal" class="fixed inset-0 z-[200] hidden bg-teal-950/60 backdrop-blur-sm flex items-center justify-center p-4 fade-in">
   <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-teal-900/10">
     <div class="flex items-center gap-3 text-rose-600 mb-3">
@@ -287,7 +287,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyPN29ib5zBUZMEC8MBHXIXrJNVhj7Uk1iDJRgsp_xpoETqr1R14pUeqEthcUkOoBQzvg/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwOswH9fV7dbDiGXr5ctoy0cQfoytkGHvUwGVKTiVId7hBcybhk51h5oKjHCRRPhi02sQ/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -369,6 +369,7 @@ const STORAGE_KEYS = {
   kunjunganAktif: "poliklinik_kunjungan_aktif",
   arsip: "poliklinik_arsip_periode",
   periodeLabel: "poliklinik_periode_aktif_label",
+  isAdmin: "poliklinik_is_admin"
 };
 
 let state = {
@@ -424,10 +425,11 @@ function muatSemuaData(){
   state.kunjunganAktif = ambilDari(STORAGE_KEYS.kunjunganAktif, []);
   state.arsip = ambilDari(STORAGE_KEYS.arsip, []);
   state.periodeAktifLabel = ambilDari(STORAGE_KEYS.periodeLabel, "Periode 2026 - 2027");
+  IS_ADMIN_AUTHENTICATED = ambilDari(STORAGE_KEYS.isAdmin, false);
 
   renderDaftarSiswaKelas();
   renderDropdownSiswaKunjungan();
-  renderTabel();
+  updateTampilanUI();
 
   if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== "") {
     const controller = new AbortController();
@@ -452,7 +454,6 @@ function muatSemuaData(){
         renderDaftarSiswaKelas();
         renderDropdownSiswaKunjungan();
         renderTabel();
-        toast("✅ Data disinkronkan.");
       })
       .catch(err => {
         console.warn("Server offline/timeout. Aplikasi berjalan dalam mode lokal:", err);
@@ -711,41 +712,21 @@ function terapkanModeTampilan(){
   renderTabel();
 }
 
-async function aturAksesPeran(){
-  const urlParams = new URLSearchParams(window.location.search);
-  const isAdminRequest = urlParams.get('mode') === 'admin';
-  
-  if (isAdminRequest) {
-    try {
-      toast("⌛ Memverifikasi Akses Admin...");
-      const response = await fetch(GOOGLE_SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action: "VERIFIKASI_PIN", pin: "" })
-      });
-      const result = await response.json();
-      
-      if (result.success || result.status === "success") {
-        IS_ADMIN_AUTHENTICATED = true;
-        toast("🔑 Akses Admin Diterima");
-      } else {
-        window.location.href = window.location.pathname;
-        return;
-      }
-    } catch (error) {
-      window.location.href = window.location.pathname;
-      return;
-    }
-  } else {
-    IS_ADMIN_AUTHENTICATED = false;
-  }
-  
+// TOGGLE MODE ADMIN (Client-Side Instant Toggle)
+document.getElementById("btnToggleMode").addEventListener("click", () => {
+  IS_ADMIN_AUTHENTICATED = !IS_ADMIN_AUTHENTICATED;
+  simpanKe(STORAGE_KEYS.isAdmin, IS_ADMIN_AUTHENTICATED);
   updateTampilanUI();
-}
+  if (IS_ADMIN_AUTHENTICATED) {
+    toast("🔑 Masuk ke Mode Admin");
+  } else {
+    toast("🚪 Keluar ke Mode Publik");
+  }
+});
 
 function updateTampilanUI() {
-  const kolomKiri = document.querySelector('main > div.lg\\:col-span-2');
-  const kolomTabel = document.querySelector('main > div.lg\\:col-span-3');
+  const kolomKiri = document.getElementById('kolomKiri');
+  const kolomTabel = document.getElementById('kolomTabel');
   const btnToggle = document.getElementById('btnToggleMode');
 
   if (!IS_ADMIN_AUTHENTICATED) {
@@ -755,7 +736,6 @@ function updateTampilanUI() {
       kolomTabel.classList.add('lg:col-span-5');
     }
     if (btnToggle) {
-      btnToggle.href = '?mode=admin';
       btnToggle.innerHTML = '🔑 Mode Admin';
     }
   } else {
@@ -765,7 +745,6 @@ function updateTampilanUI() {
       kolomTabel.classList.add('lg:col-span-3');
     }
     if (btnToggle) {
-      btnToggle.href = window.location.pathname;
       btnToggle.innerHTML = '🚪 Keluar Admin';
     }
   }
@@ -919,8 +898,7 @@ document.getElementById("btnResetFilter").addEventListener("click", () => {
   renderTabel();
 });
 
-window.addEventListener("DOMContentLoaded", async () => {
-  await aturAksesPeran();
+window.addEventListener("DOMContentLoaded", () => {
   siapkanForm();
   muatSemuaData();
   renderDaftarSiswaKelas();
