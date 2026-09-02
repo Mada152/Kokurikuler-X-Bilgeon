@@ -139,7 +139,7 @@
 
 <main class="max-w-7xl mx-auto px-5 mt-6 grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-  <!-- KOLOM KIRI: FORM & MANAJEMEN DATA (HANYA MUNCUL DI MODE ADMIN) -->
+  <!-- KOLOM KIRI: FORM & MANAJEMEN DATA (MUNCUL HANYA DI MODE ADMIN) -->
   <div id="kolomKiri" class="lg:col-span-2 flex flex-col gap-5">
     <!-- Banner mode arsip -->
     <div id="archiveBanner" class="hidden card p-4 border-amber-300 bg-[var(--amber-soft)] fade-in">
@@ -287,7 +287,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwOswH9fV7dbDiGXr5ctoy0cQfoytkGHvUwGVKTiVId7hBcybhk51h5oKjHCRRPhi02sQ/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbynpjsSCvOKwZdtpJRm3Bm4sEbDkQBqDAHmHWfRtZ5shWdXlmxST2zx2d-uWT3FpbkUqQ/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -456,7 +456,7 @@ function muatSemuaData(){
         renderTabel();
       })
       .catch(err => {
-        console.warn("Server offline/timeout. Aplikasi berjalan dalam mode lokal:", err);
+        console.warn("Server offline/timeout. Menggunakan data cache lokal:", err);
       });
   }
 }
@@ -470,7 +470,6 @@ function toast(msg){
   setTimeout(()=>{ el.style.opacity="0"; el.style.transition="opacity .3s"; setTimeout(()=>el.remove(),300); }, 2200);
 }
 
-// MODAL HAPUS KUSTOM
 function konfirmasiHapusModal(pesan) {
   return new Promise((resolve) => {
     const modal = document.getElementById("deleteModal");
@@ -712,15 +711,51 @@ function terapkanModeTampilan(){
   renderTabel();
 }
 
-// TOGGLE MODE ADMIN (Client-Side Instant Toggle)
-document.getElementById("btnToggleMode").addEventListener("click", () => {
-  IS_ADMIN_AUTHENTICATED = !IS_ADMIN_AUTHENTICATED;
-  simpanKe(STORAGE_KEYS.isAdmin, IS_ADMIN_AUTHENTICATED);
-  updateTampilanUI();
+// TOGGLE MODE ADMIN (Dengan Verifikasi PIN Server)
+document.getElementById("btnToggleMode").addEventListener("click", async () => {
   if (IS_ADMIN_AUTHENTICATED) {
-    toast("🔑 Masuk ke Mode Admin");
-  } else {
+    IS_ADMIN_AUTHENTICATED = false;
+    simpanKe(STORAGE_KEYS.isAdmin, false);
+    updateTampilanUI();
     toast("🚪 Keluar ke Mode Publik");
+    return;
+  }
+
+  const inputPin = prompt("Masukkan PIN / Password Admin:");
+
+  if (inputPin === null || inputPin.trim() === "") return;
+
+  if (!GOOGLE_SCRIPT_URL) {
+    alert("⚠️ URL Apps Script belum diatur.");
+    return;
+  }
+
+  toast("⏳ Memverifikasi PIN...");
+
+  try {
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "VERIFIKASI_PIN",
+        pin: inputPin.trim()
+      })
+    });
+
+    const result = await response.json();
+
+    if (result.success || result.status === "success") {
+      IS_ADMIN_AUTHENTICATED = true;
+      simpanKe(STORAGE_KEYS.isAdmin, true);
+      updateTampilanUI();
+      toast("🔑 Akses Diterima! Masuk Mode Admin");
+    } else {
+      alert("❌ PIN / Password Salah!");
+      toast("⚠️ Akses Ditolak");
+    }
+  } catch (err) {
+    console.error("Gagal verifikasi PIN:", err);
+    alert("⚠️ Gagal terhubung ke server Apps Script. Periksa koneksi internet Anda.");
   }
 });
 
