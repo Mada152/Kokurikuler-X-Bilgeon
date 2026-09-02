@@ -113,7 +113,6 @@
 <header class="border-b border-teal-900/10 bg-gradient-to-r from-[var(--teal-950)] to-[var(--teal-800)] text-white">
   <div class="max-w-7xl mx-auto px-5 py-4 flex flex-wrap items-center justify-between gap-4">
     <div class="flex items-center gap-4">
-      <!-- Logo SMA Banua Kalsel via Direct Link -->
       <div class="w-14 h-14 rounded-2xl bg-white p-1.5 flex items-center justify-center shadow-lg border border-white/30">
         <img src="https://blogger.googleusercontent.com/img/a/AVvXsEhwOtW9d5f7dgPS7FhpytSdQF5f5nPX0cXux2ocBN1C-P-y10LYTAn7O59sutJrcBOSCqaYYSdhmnTIbAOmS7_j5eYuCk7clD3VKHsrsJEEPigCUW8B3V5DWjV25dF9dDwKi4UBx8MlYB5nE-IkcugvyC6E27AdhKX5YuwyawpT9D1BfAxo4Ht2Pj0KDiud=s1600" alt="Logo SMA Banua Kalsel" class="max-h-full max-w-full object-contain" />
       </div>
@@ -253,8 +252,7 @@
           <thead>
             <tr>
               <th>No</th>
-              <th>Tanggal</th>
-              <th>Hari</th>
+              <th>Hari, Tanggal</th>
               <th>Jam</th>
               <th>JP</th>
               <th>Kelas</th>
@@ -271,10 +269,25 @@
   </div>
 </main>
 
+<!-- MODAL KONFIRMASI HAPUS KUSTOM -->
+<div id="deleteModal" class="fixed inset-0 z-[200] hidden bg-teal-950/60 backdrop-blur-sm flex items-center justify-center p-4 fade-in">
+  <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-teal-900/10">
+    <div class="flex items-center gap-3 text-rose-600 mb-3">
+      <div class="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center font-bold text-lg">⚠️</div>
+      <h3 class="font-display font-700 text-lg text-teal-950">Konfirmasi Hapus</h3>
+    </div>
+    <p id="deleteModalMessage" class="text-sm text-teal-900/80 mb-6">Apakah Anda yakin ingin menghapus data ini?</p>
+    <div class="flex justify-end gap-3">
+      <button id="btnCancelDelete" class="btn-ghost text-xs px-4 py-2">Batal</button>
+      <button id="btnConfirmDelete" class="btn-amber text-xs px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white">Ya, Hapus Data</button>
+    </div>
+  </div>
+</div>
+
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxtwYriRaKd79MBK7zErGTNRDT6ew_ptlouJeDJ2arHAIeVwZ0jZ6JhM-82O5wFghDzJg/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_S6MYx3fZgV7PZ2pgq4vU58D2v8DlJFjOGuTTkiV5BiHEGOrxVPIcN_vjUtO_yaTT/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -321,7 +334,7 @@ const JP_SCHEDULE_PER_HARI = {
     { jp: "JP 7", mulai: "13:50", selesai: "14:30" },
     { jp: "JP 8", mulai: "14:30", selesai: "15:15" },
     { jp: "JP 9", mulai: "15:15", selesai: "16:00" },
-     { jp: "Setelah KBM", mulai: "16:00", selesai: "23:59" },
+    { jp: "Setelah KBM", mulai: "16:00", selesai: "23:59" },
   ],
 };
 
@@ -412,14 +425,13 @@ function muatSemuaData(){
   state.arsip = ambilDari(STORAGE_KEYS.arsip, []);
   state.periodeAktifLabel = ambilDari(STORAGE_KEYS.periodeLabel, "Periode 2026 - 2027");
 
-  // Render awal instan dari data penyimpanan lokal
   renderDaftarSiswaKelas();
   renderDropdownSiswaKunjungan();
   renderTabel();
 
   if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== "") {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000); // Mencegah loading selamanya (timeout 4 detik)
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
     fetch(GOOGLE_SCRIPT_URL, { signal: controller.signal })
       .then(res => res.json())
@@ -455,6 +467,31 @@ function toast(msg){
   el.textContent = msg;
   wrap.appendChild(el);
   setTimeout(()=>{ el.style.opacity="0"; el.style.transition="opacity .3s"; setTimeout(()=>el.remove(),300); }, 2200);
+}
+
+// MODAL HAPUS KUSTOM
+function konfirmasiHapusModal(pesan) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("deleteModal");
+    const msgEl = document.getElementById("deleteModalMessage");
+    const btnConfirm = document.getElementById("btnConfirmDelete");
+    const btnCancel = document.getElementById("btnCancelDelete");
+
+    msgEl.textContent = pesan;
+    modal.classList.remove("hidden");
+
+    const cleanup = () => {
+      modal.classList.add("hidden");
+      btnConfirm.removeEventListener("click", onConfirm);
+      btnCancel.removeEventListener("click", onCancel);
+    };
+
+    const onConfirm = () => { cleanup(); resolve(true); };
+    const onCancel = () => { cleanup(); resolve(false); };
+
+    btnConfirm.addEventListener("click", onConfirm);
+    btnCancel.addEventListener("click", onCancel);
+  });
 }
 
 function tickJam(){
@@ -536,7 +573,9 @@ function renderDaftarSiswaKelas(){
     btn.addEventListener("click", async ()=>{
       const id = btn.dataset.id;
       const target = state.siswa.find(s=>s.id===id);
-      if(!confirm(`Hapus "${target?.nama}" dari data master siswa?`)) return;
+      
+      const setuju = await konfirmasiHapusModal(`Apakah Anda yakin ingin menghapus "${target?.nama}" dari data master siswa?`);
+      if(!setuju) return;
 
       if (GOOGLE_SCRIPT_URL) {
         fetch(GOOGLE_SCRIPT_URL, {
@@ -612,12 +651,16 @@ function renderTabel(){
   tbody.innerHTML = hasil.map((row,idx)=>{
     const jamBersih = bersihkanFormatJam(row.jam);
     const jpTampil = tentukanJP(row.hari, jamBersih);
+    const hariTampil = row.hari || '-';
+    const tanggalTampil = formatTanggalTampil(row.tanggal);
 
     return `
       <tr class="fade-in">
         <td class="font-mono text-teal-900/50">${idx+1}</td>
-        <td class="font-mono">${formatTanggalTampil(row.tanggal)}</td>
-        <td>${row.hari || '-'}</td>
+        <td>
+          <span class="font-600">${hariTampil}</span>, 
+          <span class="font-mono text-teal-900/80">${tanggalTampil}</span>
+        </td>
         <td class="font-mono">${jamBersih}</td>
         <td><span class="badge ${jpTampil.includes('luar')||jpTampil.includes('Sebelum')||jpTampil.includes('Setelah') ? 'badge-jp-off':'badge-jp'}">${jpTampil}</span></td>
         <td><span class="font-600">${row.kelas}</span></td>
@@ -632,7 +675,9 @@ function renderTabel(){
     tbody.querySelectorAll(".btnHapusKunjungan").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         const idTarget = btn.dataset.id;
-        if(!confirm("Hapus data kunjungan ini?")) return;
+        
+        const setuju = await konfirmasiHapusModal("Apakah Anda yakin ingin menghapus data kunjungan ini?");
+        if(!setuju) return;
 
         if (GOOGLE_SCRIPT_URL) {
           try {
@@ -666,24 +711,17 @@ function terapkanModeTampilan(){
   renderTabel();
 }
 
-// FUNGSI VERIFIKASI PIN ADMIN SERVER-SIDE
 async function aturAksesPeran(){
   const urlParams = new URLSearchParams(window.location.search);
   const isAdminRequest = urlParams.get('mode') === 'admin';
   
   if (isAdminRequest) {
-    const inputPin = prompt("Masukkan PIN Keamanan Admin:");
-    if (inputPin === null) {
-      window.location.href = window.location.pathname;
-      return;
-    }
-    
     try {
-      toast("⌛ Memverifikasi PIN...");
+      toast("⌛ Memverifikasi Akses Admin...");
       const response = await fetch(GOOGLE_SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action: "VERIFIKASI_PIN", pin: inputPin.trim() })
+        body: JSON.stringify({ action: "VERIFIKASI_PIN", pin: "" })
       });
       const result = await response.json();
       
@@ -691,12 +729,10 @@ async function aturAksesPeran(){
         IS_ADMIN_AUTHENTICATED = true;
         toast("🔑 Akses Admin Diterima");
       } else {
-        alert("PIN Salah!");
         window.location.href = window.location.pathname;
         return;
       }
     } catch (error) {
-      alert("Gagal terhubung ke server verifikasi.");
       window.location.href = window.location.pathname;
       return;
     }
@@ -833,7 +869,7 @@ document.getElementById("formSiswa").addEventListener("submit", (e) => {
 // BEKUKAN ARSIP PERIODE
 document.getElementById("btnBekukan").addEventListener("click", () => {
   if (state.kunjunganAktif.length === 0) {
-    alert("Tidak ada data kunjungan untuk dibekukan.");
+    toast("⚠️ Tidak ada data kunjungan untuk dibekukan.");
     return;
   }
   const labelInput = prompt("Masukkan Label Periode baru:");
