@@ -32,6 +32,17 @@
     color:var(--ink);
     min-height:100vh;
   }
+  
+  /* PERBAIKAN WARNA TEKS INVISIBLE */
+  select, option, input, textarea {
+    color: #0b2b2a !important;
+    background-color: #ffffff !important;
+  }
+  select option {
+    color: #0b2b2a !important;
+    background-color: #ffffff !important;
+  }
+
   .font-display{ font-family:'Plus Jakarta Sans',ui-sans-serif,sans-serif; letter-spacing:-0.02em; }
   .font-mono{ font-family:'JetBrains Mono',ui-monospace,monospace; }
   .card{
@@ -81,7 +92,7 @@
     font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; font-weight:700;
     padding:.7rem .75rem; text-align:left; z-index:10;
   }
-  table tbody td{ padding:.65rem .75rem; font-size:.84rem; vertical-align:top; border-bottom:1px solid rgba(15,84,76,0.08); }
+  table tbody td{ padding:.65rem .75rem; font-size:.84rem; vertical-align:top; border-bottom:1px solid rgba(15,84,76,0.08); color:var(--ink); }
   table tbody tr:hover{ background:var(--teal-50); }
   .stamp{
     position:absolute; top:1.1rem; right:1.4rem; z-index:20;
@@ -109,7 +120,7 @@
 </head>
 <body class="pb-16">
 
-<!-- HEADER / LOBBY APLIKASI -->
+<!-- HEADER -->
 <header class="border-b border-teal-900/10 bg-gradient-to-r from-[var(--teal-950)] to-[var(--teal-800)] text-white">
   <div class="max-w-7xl mx-auto px-5 py-4 flex flex-wrap items-center justify-between gap-4">
     <div class="flex items-center gap-4">
@@ -139,12 +150,11 @@
 
 <main class="max-w-7xl mx-auto px-5 mt-6 grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-  <!-- KOLOM KIRI: FORM & MANAJEMEN DATA (MUNCUL HANYA DI MODE ADMIN) -->
+  <!-- KOLOM KIRI (HANYA MUNCUL DI MODE ADMIN) -->
   <div id="kolomKiri" class="lg:col-span-2 flex flex-col gap-5">
-    <!-- Banner mode arsip -->
     <div id="archiveBanner" class="hidden card p-4 border-amber-300 bg-[var(--amber-soft)] fade-in">
       <p class="text-sm font-700 text-[var(--amber)]">📁 Sedang menampilkan arsip (mode baca saja)</p>
-      <p class="text-xs text-teal-900/60 mt-1">Formulir kunjungan dinonaktifkan. Kembali ke periode aktif untuk mencatat data baru.</p>
+      <p class="text-xs text-teal-900/60 mt-1">Formulir kunjungan dinonaktifkan.</p>
       <button id="btnKembaliAktif" class="btn-primary text-xs px-3 py-1.5 mt-3">← Kembali ke Periode Aktif</button>
     </div>
 
@@ -170,11 +180,11 @@
         </div>
         <div>
           <label class="label-field">Keluhan / Alasan Kunjungan</label>
-          <textarea id="kunjunganKeluhan" rows="3" class="input-field" placeholder="Contoh: Pusing dan mual sejak jam pelajaran ke-2" required></textarea>
+          <textarea id="kunjunganKeluhan" rows="3" class="input-field" placeholder="Contoh: Pusing dan mual" required></textarea>
         </div>
 
         <div class="rounded-xl bg-teal-50 border border-teal-700/10 p-3 text-xs text-teal-900/70">
-          Waktu tercatat otomatis saat data disimpan:
+          Waktu tercatat otomatis:
           <span id="previewWaktu" class="font-mono font-700 text-teal-800 block mt-1"></span>
         </div>
 
@@ -205,9 +215,7 @@
         <span class="text-lg">🗄️</span>
         <h2 class="font-display font-700 text-base">Arsip Periode Tahunan</h2>
       </div>
-      <p class="text-xs text-teal-900/60 mb-3">Bekukan seluruh data kunjungan periode berjalan lalu mulai catatan baru.</p>
       <button id="btnBekukan" class="btn-amber w-full py-2.5 text-sm mb-4">🔒 Bekukan Periode Sekarang</button>
-
       <label class="label-field">Lihat Arsip Periode</label>
       <select id="pilihPeriode" class="input-field"></select>
     </section>
@@ -287,7 +295,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxBzLwNXT4UMKe-FFqypxy9wLUzcPs5Z6Ij9imwKgTlYMIC8wpADcIzwXrfboexX3gcAw/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx54q-hSzWhxz09HFOynZT9so_cKkdPJuARWm44tKsc3xCb3ZX8d3pWHLdchQvrRa0fKg/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -456,7 +464,7 @@ function muatSemuaData(){
         renderTabel();
       })
       .catch(err => {
-        console.warn("Server offline/timeout. Menggunakan data cache lokal:", err);
+        console.warn("Menggunakan data cache lokal:", err);
       });
   }
 }
@@ -534,6 +542,7 @@ function renderBadgePeriode(){
   }
 }
 
+// DROPDOWN SISWA DENGAN PERBAIKAN TEKS VISIBLE
 function renderDropdownSiswaKunjungan(){
   const kelasSel = document.getElementById("kunjunganKelas").value;
   const siswaSel = document.getElementById("kunjunganSiswa");
@@ -541,18 +550,26 @@ function renderDropdownSiswaKunjungan(){
 
   if(!kelasSel){
     siswaSel.disabled = true;
-    siswaSel.innerHTML = `<option value="">Pilih kelas terlebih dahulu</option>`;
+    siswaSel.innerHTML = `<option value="">— Pilih kelas terlebih dahulu —</option>`;
     return;
   }
-  const daftar = state.siswa.filter(s=>s.kelas===kelasSel).sort((a,b)=>a.nama.localeCompare(b.nama,'id'));
-  if(daftar.length===0){
+  
+  const daftar = state.siswa.filter(s => s.kelas === kelasSel).sort((a,b) => a.nama.localeCompare(b.nama,'id'));
+  
+  if(daftar.length === 0){
     siswaSel.disabled = true;
     siswaSel.innerHTML = `<option value="">Belum ada siswa terdaftar di kelas ini</option>`;
     return;
   }
+  
   siswaSel.disabled = false;
-  siswaSel.innerHTML = `<option value="">— Pilih siswa —</option>` +
-    daftar.map(s=>`<option value="${s.id}">${s.nama}</option>`).join("");
+  let options = `<option value="">— Pilih siswa —</option>`;
+  
+  daftar.forEach(s => {
+    options += `<option value="${s.id}">${s.nama}</option>`;
+  });
+  
+  siswaSel.innerHTML = options;
 }
 
 function renderDaftarSiswaKelas(){
@@ -565,7 +582,7 @@ function renderDaftarSiswaKelas(){
   }
   wrap.innerHTML = daftar.map(s=>`
     <div class="flex items-center justify-between px-3 py-2 text-sm">
-      <span>${s.nama}</span>
+      <span class="text-teal-950 font-medium">${s.nama}</span>
       <button data-id="${s.id}" class="btnHapusSiswa text-rose-600 hover:text-rose-800 text-xs font-600">Hapus</button>
     </div>
   `).join("");
@@ -664,7 +681,7 @@ function renderTabel(){
         <td class="font-mono">${jamBersih}</td>
         <td><span class="badge ${jpTampil.includes('luar')||jpTampil.includes('Sebelum')||jpTampil.includes('Setelah') ? 'badge-jp-off':'badge-jp'}">${jpTampil}</span></td>
         <td><span class="font-600">${row.kelas}</span></td>
-        <td><span class="font-600">${row.nama}</span></td>
+        <td><span class="font-700 text-teal-950">${row.nama}</span></td>
         <td class="max-w-xs whitespace-pre-wrap text-teal-900/80">${row.keluhan}</td>
         ${IS_ADMIN_AUTHENTICATED ? `<td>${modeArsip ? "" : `<button data-id="${row.id}" class="btnHapusKunjungan text-rose-500 hover:text-rose-700 text-xs">✕ Hapus</button>`}</td>` : ""}
       </tr>
@@ -711,7 +728,7 @@ function terapkanModeTampilan(){
   renderTabel();
 }
 
-// TOGGLE MODE ADMIN (Dengan Verifikasi PIN Server)
+// TOGGLE MODE ADMIN (PIN DIBACA DARI SHEET "Pengaturan" SEL A1)
 document.getElementById("btnToggleMode").addEventListener("click", async () => {
   if (IS_ADMIN_AUTHENTICATED) {
     IS_ADMIN_AUTHENTICATED = false;
