@@ -33,7 +33,6 @@
     min-height:100vh;
   }
   
-  /* PENGUNCIAN WARNA TEKS DROPDOWN AGAR SELALU TERLIHAT HARMONIS */
   select, option, input, textarea {
     color: #0b2b2a !important;
     background-color: #ffffff !important;
@@ -391,23 +390,30 @@ function formatTanggal(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${p
 function formatJam(d){ return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function getNamaHari(d){ return HARI_INDO[d.getDay()]; }
 
+// PERBAIKAN: Format Tanggal berbasis String Murni tanpa new Date()
 function formatTanggalTampil(iso){
-  if(!iso || iso === "undefined") return "-";
-  if(iso.includes("T")) iso = iso.split("T")[0];
-  const p = iso.split("-");
-  if(p.length === 3) return `${p[2].substring(0,2)}-${p[1]}-${p[0]}`;
-  return iso;
+  if(!iso || iso === "undefined" || iso === null) return "-";
+  let str = String(iso).trim();
+  if(str.includes("T")) str = str.split("T")[0];
+  
+  // Jika formatnya YYYY-MM-DD
+  const p = str.split("-");
+  if(p.length === 3 && p[0].length === 4) {
+    return `${p[2].substring(0,2)}-${p[1]}-${p[0]}`;
+  }
+  return str;
 }
 
+// PERBAIKAN: Bersihkan Format Jam murni dari string teks
 function bersihkanFormatJam(jamRaw){
-  if(!jamRaw) return "--:--";
+  if(!jamRaw || jamRaw === "undefined" || jamRaw === null) return "--:--";
   let str = String(jamRaw).trim();
-  if(str.includes("1899") || str.includes("GMT") || str.includes("T")){
-    const match = str.match(/(\d{2}):(\d{2})/);
-    if(match) return `${match[1]}:${match[2]}`;
+  
+  // Ekstrak HH:mm jika dari format waktu ISO/Google
+  const match = str.match(/(\d{1,2}):(\d{2})/);
+  if(match) {
+    return `${pad(parseInt(match[1]))}:${pad(parseInt(match[2]))}`;
   }
-  const p = str.split(":");
-  if(p.length >= 2) return `${pad(parseInt(p[0]))}:${pad(parseInt(p[1]))}`;
   return str;
 }
 
@@ -639,9 +645,12 @@ function renderTabel(){
   const sampai = document.getElementById("filterSampai").value;
 
   let hasil = sumber.filter(row=>{
+    let rawTgl = String(row.tanggal || "");
+    if(rawTgl.includes("T")) rawTgl = rawTgl.split("T")[0];
+
     if(filterKelas && row.kelas !== filterKelas) return false;
-    if(dari && row.tanggal < dari) return false;
-    if(sampai && row.tanggal > sampai) return false;
+    if(dari && rawTgl < dari) return false;
+    if(sampai && rawTgl > sampai) return false;
     if(cari){
       const gabung = `${row.nama} ${row.keluhan} ${row.kelas}`.toLowerCase();
       if(!gabung.includes(cari)) return false;
@@ -650,7 +659,9 @@ function renderTabel(){
   });
 
   hasil = hasil.slice().sort((a,b)=>{
-    if(a.tanggal !== b.tanggal) return b.tanggal.localeCompare(a.tanggal);
+    let tglA = String(a.tanggal || "");
+    let tglB = String(b.tanggal || "");
+    if(tglA !== tglB) return tglB.localeCompare(tglA);
     return String(b.jam).localeCompare(String(a.jam));
   });
 
