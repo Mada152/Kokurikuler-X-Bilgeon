@@ -33,7 +33,7 @@
     min-height:100vh;
   }
   
-  /* PERBAIKAN WARNA TEKS INVISIBLE */
+  /* PENGUNCIAN WARNA TEKS DROPDOWN AGAR SELALU TERLIHAT HARMONIS */
   select, option, input, textarea {
     color: #0b2b2a !important;
     background-color: #ffffff !important;
@@ -120,7 +120,6 @@
 </head>
 <body class="pb-16">
 
-<!-- HEADER -->
 <header class="border-b border-teal-900/10 bg-gradient-to-r from-[var(--teal-950)] to-[var(--teal-800)] text-white">
   <div class="max-w-7xl mx-auto px-5 py-4 flex flex-wrap items-center justify-between gap-4">
     <div class="flex items-center gap-4">
@@ -150,7 +149,6 @@
 
 <main class="max-w-7xl mx-auto px-5 mt-6 grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-  <!-- KOLOM KIRI (HANYA MUNCUL DI MODE ADMIN) -->
   <div id="kolomKiri" class="lg:col-span-2 flex flex-col gap-5">
     <div id="archiveBanner" class="hidden card p-4 border-amber-300 bg-[var(--amber-soft)] fade-in">
       <p class="text-sm font-700 text-[var(--amber)]">📁 Sedang menampilkan arsip (mode baca saja)</p>
@@ -221,7 +219,6 @@
     </section>
   </div>
 
-  <!-- KOLOM KANAN: TABEL KUNJUNGAN -->
   <div id="kolomTabel" class="lg:col-span-3">
     <section class="card p-5 relative overflow-hidden">
       <div id="stampArsip" class="stamp hidden">Arsip · Baca Saja</div>
@@ -232,7 +229,6 @@
         <span id="jumlahData" class="ml-auto text-xs font-mono text-teal-900/50"></span>
       </div>
 
-      <!-- Filter -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
         <div class="col-span-2 sm:col-span-1">
           <label class="label-field">Cari</label>
@@ -277,7 +273,6 @@
   </div>
 </main>
 
-<!-- MODAL KONFIRMASI HAPUS -->
 <div id="deleteModal" class="fixed inset-0 z-[200] hidden bg-teal-950/60 backdrop-blur-sm flex items-center justify-center p-4 fade-in">
   <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-teal-900/10">
     <div class="flex items-center gap-3 text-rose-600 mb-3">
@@ -295,7 +290,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx54q-hSzWhxz09HFOynZT9so_cKkdPJuARWm44tKsc3xCb3ZX8d3pWHLdchQvrRa0fKg/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQi6eST5Evhc5VXWO6GfR368PXFXxmBfABmdkrWb-zNyU3B6A_BEhyXiLiixpj7hT7MQ/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -453,7 +448,7 @@ function muatSemuaData(){
         }
         if (data.siswa && Array.isArray(data.siswa) && data.siswa.length > 0) {
           state.siswa = data.siswa.map((s, idx) => ({
-            id: s.id || `siswa-sheet-${idx}-${s.nama}`,
+            id: s.nama,
             nama: s.nama,
             kelas: s.kelas
           }));
@@ -542,7 +537,6 @@ function renderBadgePeriode(){
   }
 }
 
-// DROPDOWN SISWA DENGAN PERBAIKAN TEKS VISIBLE
 function renderDropdownSiswaKunjungan(){
   const kelasSel = document.getElementById("kunjunganKelas").value;
   const siswaSel = document.getElementById("kunjunganSiswa");
@@ -554,7 +548,12 @@ function renderDropdownSiswaKunjungan(){
     return;
   }
   
-  const daftar = state.siswa.filter(s => s.kelas === kelasSel).sort((a,b) => a.nama.localeCompare(b.nama,'id'));
+  const kelasClean = kelasSel.replace(/\s+/g, '').toLowerCase();
+  
+  const daftar = state.siswa.filter(s => {
+    if (!s.kelas) return false;
+    return String(s.kelas).replace(/\s+/g, '').toLowerCase() === kelasClean;
+  }).sort((a,b) => String(a.nama).localeCompare(String(b.nama),'id'));
   
   if(daftar.length === 0){
     siswaSel.disabled = true;
@@ -566,7 +565,7 @@ function renderDropdownSiswaKunjungan(){
   let options = `<option value="">— Pilih siswa —</option>`;
   
   daftar.forEach(s => {
-    options += `<option value="${s.id}">${s.nama}</option>`;
+    options += `<option value="${s.nama}">${s.nama}</option>`;
   });
   
   siswaSel.innerHTML = options;
@@ -575,7 +574,13 @@ function renderDropdownSiswaKunjungan(){
 function renderDaftarSiswaKelas(){
   const kelas = document.getElementById("siswaFilterKelas").value;
   const wrap = document.getElementById("daftarSiswaKelas");
-  const daftar = state.siswa.filter(s=>s.kelas===kelas).sort((a,b)=>a.nama.localeCompare(b.nama,'id'));
+  
+  const kelasClean = kelas.replace(/\s+/g, '').toLowerCase();
+  const daftar = state.siswa.filter(s => {
+    if(!s.kelas) return false;
+    return String(s.kelas).replace(/\s+/g, '').toLowerCase() === kelasClean;
+  }).sort((a,b) => String(a.nama).localeCompare(String(b.nama),'id'));
+
   if(daftar.length===0){
     wrap.innerHTML = `<p class="text-xs text-teal-900/40 p-3">Belum ada siswa di kelas ${kelas}.</p>`;
     return;
@@ -583,26 +588,26 @@ function renderDaftarSiswaKelas(){
   wrap.innerHTML = daftar.map(s=>`
     <div class="flex items-center justify-between px-3 py-2 text-sm">
       <span class="text-teal-950 font-medium">${s.nama}</span>
-      <button data-id="${s.id}" class="btnHapusSiswa text-rose-600 hover:text-rose-800 text-xs font-600">Hapus</button>
+      <button data-nama="${s.nama}" class="btnHapusSiswa text-rose-600 hover:text-rose-800 text-xs font-600">Hapus</button>
     </div>
   `).join("");
+
   wrap.querySelectorAll(".btnHapusSiswa").forEach(btn=>{
     btn.addEventListener("click", async ()=>{
-      const id = btn.dataset.id;
-      const target = state.siswa.find(s=>s.id===id);
+      const namaTarget = btn.dataset.nama;
       
-      const setuju = await konfirmasiHapusModal(`Apakah Anda yakin ingin menghapus "${target?.nama}" dari data master siswa?`);
+      const setuju = await konfirmasiHapusModal(`Apakah Anda yakin ingin menghapus "${namaTarget}" dari data master siswa?`);
       if(!setuju) return;
 
       if (GOOGLE_SCRIPT_URL) {
         fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({ action: "HAPUS_SISWA", id: id, nama: target?.nama })
+          body: JSON.stringify({ action: "HAPUS_SISWA", nama: namaTarget })
         }).catch(err => console.error(err));
       }
 
-      state.siswa = state.siswa.filter(s=>s.id!==id);
+      state.siswa = state.siswa.filter(s => s.nama !== namaTarget);
       simpanKe(STORAGE_KEYS.siswa, state.siswa);
       renderDaftarSiswaKelas();
       renderDropdownSiswaKunjungan();
@@ -728,7 +733,6 @@ function terapkanModeTampilan(){
   renderTabel();
 }
 
-// TOGGLE MODE ADMIN (PIN DIBACA DARI SHEET "Pengaturan" SEL A1)
 document.getElementById("btnToggleMode").addEventListener("click", async () => {
   if (IS_ADMIN_AUTHENTICATED) {
     IS_ADMIN_AUTHENTICATED = false;
@@ -811,19 +815,17 @@ function siapkanForm(){
   isiDropdownKelas(document.getElementById("filterKelas"), true);
 }
 
-// LISTENERS
 document.getElementById("kunjunganKelas").addEventListener("change", renderDropdownSiswaKunjungan);
 document.getElementById("siswaFilterKelas").addEventListener("change", renderDaftarSiswaKelas);
 
-// SUBMIT KUNJUNGAN BARU
 document.getElementById("formKunjungan").addEventListener("submit", async (e) => {
   e.preventDefault();
   
-  const siswaId = document.getElementById("kunjunganSiswa").value;
+  const namaSiswa = document.getElementById("kunjunganSiswa").value;
   const keluhan = document.getElementById("kunjunganKeluhan").value.trim();
-  const siswaObj = state.siswa.find(s => String(s.id) === String(siswaId));
+  const kelas = document.getElementById("kunjunganKelas").value;
 
-  if (!siswaObj || !keluhan) {
+  if (!namaSiswa || !keluhan) {
     toast("⚠️ Pilih siswa dan isi keluhan.");
     return;
   }
@@ -838,8 +840,8 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
     hari: hari,
     jam: jam,
     jp: tentukanJP(hari, jam),
-    kelas: siswaObj.kelas,
-    nama: siswaObj.nama,
+    kelas: kelas,
+    nama: namaSiswa,
     keluhan: keluhan,
     dicatatPada: now.toISOString()
   };
@@ -849,7 +851,7 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
   
   document.getElementById("kunjunganKeluhan").value = "";
   renderTabel();
-  toast(`✅ Kunjungan ${siswaObj.nama} dicatat.`);
+  toast(`✅ Kunjungan ${namaSiswa} dicatat.`);
 
   if (GOOGLE_SCRIPT_URL) {
     try {
@@ -866,7 +868,6 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
   }
 });
 
-// SUBMIT SISWA BARU
 document.getElementById("formSiswa").addEventListener("submit", (e) => {
   e.preventDefault();
   const kelas = document.getElementById("siswaKelas").value;
@@ -877,7 +878,7 @@ document.getElementById("formSiswa").addEventListener("submit", (e) => {
     return;
   }
 
-  const baru = { id: uid(), kelas, nama };
+  const baru = { id: nama, kelas, nama };
   state.siswa.push(baru);
   simpanKe(STORAGE_KEYS.siswa, state.siswa);
 
@@ -897,7 +898,6 @@ document.getElementById("formSiswa").addEventListener("submit", (e) => {
   }
 });
 
-// BEKUKAN ARSIP PERIODE
 document.getElementById("btnBekukan").addEventListener("click", () => {
   if (state.kunjunganAktif.length === 0) {
     toast("⚠️ Tidak ada data kunjungan untuk dibekukan.");
