@@ -289,7 +289,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxkXp7yfaDzxBq2zUs06Q9UF_DEfLc2NuqRDLOKyWLSQJvU2qSW0-jjcw3PBZSdK9d7xg/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw3-qEbtFInzmfEdTGbQGZDLUJ_jSQOyl7lhHvVVamG_d0vaw4bF5i0LUEfUB-XFGzMVw/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -442,9 +442,12 @@ function muatSemuaData(){
 
   if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== "") {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    fetch(GOOGLE_SCRIPT_URL, { signal: controller.signal })
+    // DITAMBAHKAN PARAMETER NOCACHE UNTUK MENCEGAH BENTROKAN DATA DI LAPTOP LAIN
+    const urlAntiCache = GOOGLE_SCRIPT_URL + (GOOGLE_SCRIPT_URL.includes("?") ? "&" : "?") + "v=" + Date.now();
+
+    fetch(urlAntiCache, { signal: controller.signal })
       .then(res => res.json())
       .then(data => {
         clearTimeout(timeoutId);
@@ -453,7 +456,7 @@ function muatSemuaData(){
           simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
         }
         if (data.siswa && Array.isArray(data.siswa) && data.siswa.length > 0) {
-          state.siswa = data.siswa.map((s, idx) => ({
+          state.siswa = data.siswa.map((s) => ({
             id: s.nama,
             nama: s.nama,
             kelas: s.kelas
@@ -469,7 +472,7 @@ function muatSemuaData(){
       });
   }
 }
-
+  
 function toast(msg){
   const wrap = document.getElementById("toastWrap");
   const el = document.createElement("div");
