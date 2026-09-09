@@ -37,10 +37,6 @@
     color: #0b2b2a !important;
     background-color: #ffffff !important;
   }
-  select option {
-    color: #0b2b2a !important;
-    background-color: #ffffff !important;
-  }
 
   .font-display{ font-family:'Plus Jakarta Sans',ui-sans-serif,sans-serif; letter-spacing:-0.02em; }
   .font-mono{ font-family:'JetBrains Mono',ui-monospace,monospace; }
@@ -164,20 +160,24 @@
 
       <form id="formKunjungan" class="space-y-3.5">
         <div>
-          <label class="label-field">Kelas</label>
+          <label class="label-field" for="kunjunganKelas">Kelas</label>
           <select id="kunjunganKelas" class="input-field" required>
             <option value="">— Pilih kelas —</option>
           </select>
         </div>
         <div>
-          <label class="label-field">Nama Siswa</label>
+          <label class="label-field" for="kunjunganSiswa">Nama Siswa</label>
           <select id="kunjunganSiswa" class="input-field" required disabled>
             <option value="">Pilih kelas terlebih dahulu</option>
           </select>
         </div>
         <div>
-          <label class="label-field">Keluhan / Alasan Kunjungan</label>
-          <textarea id="kunjunganKeluhan" rows="3" class="input-field" placeholder="Contoh: Pusing dan mual" required></textarea>
+          <label class="label-field" for="kunjunganKeluhan">Keluhan / Alasan Kunjungan</label>
+          <textarea id="kunjunganKeluhan" rows="2" class="input-field" placeholder="Contoh: Pusing dan mual" required></textarea>
+        </div>
+        <div>
+          <label class="label-field" for="kunjunganPenanganan">Penanganan / Obat</label>
+          <textarea id="kunjunganPenanganan" rows="2" class="input-field" placeholder="Contoh: Istirahat di UKS, diberi Paracetamol 500mg" required></textarea>
         </div>
 
         <div class="rounded-xl bg-teal-50 border border-teal-700/10 p-3 text-xs text-teal-900/70">
@@ -196,12 +196,18 @@
         <h2 class="font-display font-700 text-base">Manajemen Data Siswa</h2>
       </div>
       <form id="formSiswa" class="flex flex-col sm:flex-row gap-2.5 mb-4">
-        <select id="siswaKelas" class="input-field sm:w-40" required></select>
-        <input id="siswaNama" type="text" placeholder="Nama lengkap siswa" class="input-field flex-1" required />
+        <div>
+          <label class="sr-only" for="siswaKelas">Kelas Siswa</label>
+          <select id="siswaKelas" class="input-field sm:w-36" required></select>
+        </div>
+        <div class="flex-1">
+          <label class="sr-only" for="siswaNama">Nama Siswa</label>
+          <input id="siswaNama" type="text" placeholder="Nama lengkap siswa" class="input-field" required />
+        </div>
         <button type="submit" class="btn-ghost px-4 py-2 text-sm whitespace-nowrap">+ Tambah</button>
       </form>
 
-      <label class="label-field">Lihat / kelola siswa per kelas</label>
+      <label class="label-field" for="siswaFilterKelas">Lihat / kelola siswa per kelas</label>
       <select id="siswaFilterKelas" class="input-field mb-3"></select>
       <div id="daftarSiswaKelas" class="max-h-56 overflow-y-auto divide-y divide-teal-900/5 rounded-lg border border-teal-900/10"></div>
     </section>
@@ -210,10 +216,10 @@
     <section class="card p-5">
       <div class="flex items-center gap-2 mb-4">
         <span class="text-lg">🗄️</span>
-        <h2 class="font-display font-700 text-base">Arsip Periode Tahunan</h2>
+        <h2 class="font-display font-700 text-base">Arsip Periode</h2>
       </div>
-      <button id="btnBekukan" class="btn-amber w-full py-2.5 text-sm mb-4">🔒 Bekukan Periode Sekarang</button>
-      <label class="label-field">Lihat Arsip Periode</label>
+      <button id="btnBekukan" class="btn-amber w-full py-2.5 text-sm mb-4">🔒 Bekukan Periode Ini</button>
+      <label class="label-field" for="pilihPeriode">Lihat Arsip Periode</label>
       <select id="pilihPeriode" class="input-field"></select>
     </section>
   </div>
@@ -230,19 +236,19 @@
 
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
         <div class="col-span-2 sm:col-span-1">
-          <label class="label-field">Cari</label>
-          <input id="filterCari" type="text" placeholder="Nama / keluhan..." class="input-field" />
+          <label class="label-field" for="filterCari">Cari</label>
+          <input id="filterCari" type="text" placeholder="Nama / keluhan / obat..." class="input-field" />
         </div>
         <div>
-          <label class="label-field">Kelas</label>
+          <label class="label-field" for="filterKelas">Kelas</label>
           <select id="filterKelas" class="input-field"><option value="">Semua kelas</option></select>
         </div>
         <div>
-          <label class="label-field">Dari tanggal</label>
+          <label class="label-field" for="filterDari">Dari tanggal</label>
           <input id="filterDari" type="date" class="input-field" />
         </div>
         <div>
-          <label class="label-field">Sampai tanggal</label>
+          <label class="label-field" for="filterSampai">Sampai tanggal</label>
           <input id="filterSampai" type="date" class="input-field" />
         </div>
       </div>
@@ -261,6 +267,7 @@
               <th>Kelas</th>
               <th>Nama Siswa</th>
               <th>Keluhan</th>
+              <th>Penanganan</th>
               <th id="thAksi">Aksi</th>
             </tr>
           </thead>
@@ -378,7 +385,7 @@ let state = {
   siswa: [],
   kunjunganAktif: [],
   arsip: [],
-  periodeAktifLabel: "Periode 2026 - 2027",
+  periodeAktifLabel: "September 2026",
   viewArsipLabel: null,
 };
 
@@ -429,7 +436,7 @@ function muatSemuaData(){
   state.siswa = ambilDari(STORAGE_KEYS.siswa, []);
   state.kunjunganAktif = ambilDari(STORAGE_KEYS.kunjunganAktif, []);
   state.arsip = ambilDari(STORAGE_KEYS.arsip, []);
-  state.periodeAktifLabel = ambilDari(STORAGE_KEYS.periodeLabel, "Periode 2026 - 2027");
+  state.periodeAktifLabel = ambilDari(STORAGE_KEYS.periodeLabel, "September 2026");
   IS_ADMIN_AUTHENTICATED = ambilDari(STORAGE_KEYS.isAdmin, false);
 
   renderDaftarSiswaKelas();
@@ -467,7 +474,7 @@ function muatSemuaData(){
       });
   }
 }
-  
+
 function toast(msg){
   const wrap = document.getElementById("toastWrap");
   const el = document.createElement("div");
@@ -535,7 +542,7 @@ function isiDropdownKelas(selectEl, includeSemua){
 function renderBadgePeriode(){
   const wrap = document.getElementById("periodeBadgeWrap");
   if(state.viewArsipLabel){
-    wrap.innerHTML = `<span class="badge badge-archive">📁 ${state.viewArsipLabel}</span>`;
+    wrap.innerHTML = `<span class="badge badge-archive">📁 Arsip ${state.viewArsipLabel}</span>`;
   } else {
     wrap.innerHTML = `<span class="badge badge-active">● Aktif — ${state.periodeAktifLabel}</span>`;
   }
@@ -650,7 +657,7 @@ function renderTabel(){
     if(dari && rawTgl < dari) return false;
     if(sampai && rawTgl > sampai) return false;
     if(cari){
-      const gabung = `${row.nama} ${row.keluhan} ${row.kelas}`.toLowerCase();
+      const gabung = `${row.nama} ${row.keluhan} ${row.penanganan || ""} ${row.kelas}`.toLowerCase();
       if(!gabung.includes(cari)) return false;
     }
     return true;
@@ -684,6 +691,7 @@ function renderTabel(){
     const jpTampil = tentukanJP(row.hari, jamBersih);
     const hariTampil = row.hari || '-';
     const tanggalTampil = formatTanggalTampil(row.tanggal);
+    const penangananTampil = row.penanganan || '-';
 
     return `
       <tr class="fade-in">
@@ -697,6 +705,7 @@ function renderTabel(){
         <td><span class="font-600">${row.kelas}</span></td>
         <td><span class="font-700 text-teal-950">${row.nama}</span></td>
         <td class="max-w-xs whitespace-pre-wrap text-teal-900/80">${row.keluhan}</td>
+        <td class="max-w-xs whitespace-pre-wrap text-teal-900/90 font-medium">${penangananTampil}</td>
         ${IS_ADMIN_AUTHENTICATED ? `<td>${modeArsip ? "" : `<button data-id="${row.id}" class="btnHapusKunjungan text-rose-500 hover:text-rose-700 text-xs">✕ Hapus</button>`}</td>` : ""}
       </tr>
     `;
@@ -737,6 +746,7 @@ function terapkanModeTampilan(){
   document.getElementById("kunjunganKelas").disabled = modeArsip;
   document.getElementById("kunjunganSiswa").disabled = modeArsip || !document.getElementById("kunjunganKelas").value;
   document.getElementById("kunjunganKeluhan").disabled = modeArsip;
+  document.getElementById("kunjunganPenanganan").disabled = modeArsip;
   document.getElementById("btnBekukan").disabled = modeArsip;
   renderBadgePeriode();
   renderTabel();
@@ -832,10 +842,11 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
   
   const namaSiswa = document.getElementById("kunjunganSiswa").value;
   const keluhan = document.getElementById("kunjunganKeluhan").value.trim();
+  const penanganan = document.getElementById("kunjunganPenanganan").value.trim();
   const kelas = document.getElementById("kunjunganKelas").value;
 
-  if (!namaSiswa || !keluhan) {
-    toast("⚠️ Pilih siswa dan isi keluhan.");
+  if (!namaSiswa || !keluhan || !penanganan) {
+    toast("⚠️ Pilih siswa, keluhan, dan penanganan.");
     return;
   }
 
@@ -852,6 +863,7 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
     kelas: kelas,
     nama: namaSiswa,
     keluhan: keluhan,
+    penanganan: penanganan,
     dicatatPada: now.toISOString()
   };
 
@@ -859,6 +871,7 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
   simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
   
   document.getElementById("kunjunganKeluhan").value = "";
+  document.getElementById("kunjunganPenanganan").value = "";
   renderTabel();
   toast(`✅ Kunjungan ${namaSiswa} dicatat.`);
 
@@ -912,7 +925,7 @@ document.getElementById("btnBekukan").addEventListener("click", () => {
     toast("⚠️ Tidak ada data kunjungan untuk dibekukan.");
     return;
   }
-  const labelInput = prompt("Masukkan Label Periode baru:");
+  const labelInput = prompt("Masukkan Label Periode baru (contoh: Oktober 2026):");
   if (!labelInput || !labelInput.trim()) return;
 
   const labelBaru = labelInput.trim();
