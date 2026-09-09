@@ -296,7 +296,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwqMf3RSkS8Cu0bcUG3nk2qS2VUQ-PgB3uqfSiNQHS9zH-Aexb2VcDnR6oYeO2aeLMh7Q/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzT49keGLUHkdPgA4lWvRd8Te-jR04-B35GSmg5NxgwOYSAZneVSXEv49VG0gmfGuDyaA/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -454,7 +454,11 @@ function muatSemuaData(){
       .then(data => {
         clearTimeout(timeoutId);
         if (data.kunjungan && Array.isArray(data.kunjungan)) {
-          state.kunjunganAktif = data.kunjungan;
+          // Filter out data that is already stored in existing archived periods
+          const archivedIds = new Set(
+            state.arsip.flatMap(a => (a.data || []).map(item => String(item.id)))
+          );
+          state.kunjunganAktif = data.kunjungan.filter(item => !archivedIds.has(String(item.id)));
           simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
         }
         if (data.siswa && Array.isArray(data.siswa) && data.siswa.length > 0) {
@@ -639,6 +643,7 @@ function dataSumberTabel(){
     const arsip = state.arsip.find(a=>a.label===state.viewArsipLabel);
     return arsip ? arsip.data : [];
   }
+  // Menampilkan hanya data periode aktif (yang belum/tidak dibekukan)
   return state.kunjunganAktif;
 }
 
@@ -864,6 +869,7 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
     nama: namaSiswa,
     keluhan: keluhan,
     penanganan: penanganan,
+    periode: state.periodeAktifLabel,
     dicatatPada: now.toISOString()
   };
 
@@ -929,6 +935,8 @@ document.getElementById("btnBekukan").addEventListener("click", () => {
   if (!labelInput || !labelInput.trim()) return;
 
   const labelBaru = labelInput.trim();
+  
+  // Mengisolasi data yang dibekukan ke dalam arsip
   const dibekukan = {
     label: state.periodeAktifLabel,
     dibekukanPada: new Date().toISOString(),
@@ -936,6 +944,8 @@ document.getElementById("btnBekukan").addEventListener("click", () => {
   };
 
   state.arsip.push(dibekukan);
+  
+  // Mengosongkan data kunjungan aktif untuk periode baru
   state.kunjunganAktif = [];
   state.periodeAktifLabel = labelBaru;
 
@@ -945,7 +955,7 @@ document.getElementById("btnBekukan").addEventListener("click", () => {
 
   renderDropdownPeriode();
   terapkanModeTampilan();
-  toast("🔒 Periode berhasil dibekukan.");
+  toast("🔒 Periode berhasil dibekukan & diisolasi.");
 });
 
 document.getElementById("pilihPeriode").addEventListener("change", (e) => {
