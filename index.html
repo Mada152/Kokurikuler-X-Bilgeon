@@ -296,7 +296,8 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzT49keGLUHkdPgA4lWvRd8Te-jR04-B35GSmg5NxgwOYSAZneVSXEv49VG0gmfGuDyaA/exec";
+// MASUKKAN URL DEPLOYMENT APPS SCRIPT ANDA DI SINI
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx_fLZ7BdrIWzc3BMJboptXp2IUqSonClcQMWWxbR7mJ7mbEt_l9Kf4Fm9HhUClLfY-TQ/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -454,7 +455,6 @@ function muatSemuaData(){
       .then(data => {
         clearTimeout(timeoutId);
         if (data.kunjungan && Array.isArray(data.kunjungan)) {
-          // Filter out data that is already stored in existing archived periods
           const archivedIds = new Set(
             state.arsip.flatMap(a => (a.data || []).map(item => String(item.id)))
           );
@@ -643,7 +643,6 @@ function dataSumberTabel(){
     const arsip = state.arsip.find(a=>a.label===state.viewArsipLabel);
     return arsip ? arsip.data : [];
   }
-  // Menampilkan hanya data periode aktif (yang belum/tidak dibekukan)
   return state.kunjunganAktif;
 }
 
@@ -936,7 +935,6 @@ document.getElementById("btnBekukan").addEventListener("click", () => {
 
   const labelBaru = labelInput.trim();
   
-  // Mengisolasi data yang dibekukan ke dalam arsip
   const dibekukan = {
     label: state.periodeAktifLabel,
     dibekukanPada: new Date().toISOString(),
@@ -945,7 +943,6 @@ document.getElementById("btnBekukan").addEventListener("click", () => {
 
   state.arsip.push(dibekukan);
   
-  // Mengosongkan data kunjungan aktif untuk periode baru
   state.kunjunganAktif = [];
   state.periodeAktifLabel = labelBaru;
 
