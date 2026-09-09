@@ -289,7 +289,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxNDSJm47qQpKB1PPLbzSfGEw7r-zZizYu-9ANOshB41UdhshstemVeRcr4Bjc-OVJACw/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwqMf3RSkS8Cu0bcUG3nk2qS2VUQ-PgB3uqfSiNQHS9zH-Aexb2VcDnR6oYeO2aeLMh7Q/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -390,13 +390,11 @@ function formatTanggal(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${p
 function formatJam(d){ return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function getNamaHari(d){ return HARI_INDO[d.getDay()]; }
 
-// PERBAIKAN: Format Tanggal berbasis String Murni tanpa new Date()
 function formatTanggalTampil(iso){
   if(!iso || iso === "undefined" || iso === null) return "-";
   let str = String(iso).trim();
   if(str.includes("T")) str = str.split("T")[0];
   
-  // Jika formatnya YYYY-MM-DD
   const p = str.split("-");
   if(p.length === 3 && p[0].length === 4) {
     return `${p[2].substring(0,2)}-${p[1]}-${p[0]}`;
@@ -404,12 +402,10 @@ function formatTanggalTampil(iso){
   return str;
 }
 
-// PERBAIKAN: Bersihkan Format Jam murni dari string teks
 function bersihkanFormatJam(jamRaw){
   if(!jamRaw || jamRaw === "undefined" || jamRaw === null) return "--:--";
   let str = String(jamRaw).trim();
   
-  // Ekstrak HH:mm jika dari format waktu ISO/Google
   const match = str.match(/(\d{1,2}):(\d{2})/);
   if(match) {
     return `${pad(parseInt(match[1]))}:${pad(parseInt(match[2]))}`;
@@ -444,7 +440,6 @@ function muatSemuaData(){
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    // DITAMBAHKAN PARAMETER NOCACHE UNTUK MENCEGAH BENTROKAN DATA DI LAPTOP LAIN
     const urlAntiCache = GOOGLE_SCRIPT_URL + (GOOGLE_SCRIPT_URL.includes("?") ? "&" : "?") + "v=" + Date.now();
 
     fetch(urlAntiCache, { signal: controller.signal })
