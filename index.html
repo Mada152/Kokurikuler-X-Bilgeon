@@ -764,16 +764,6 @@ document.getElementById("btnToggleMode").addEventListener("click", async () => {
     return;
   }
 
- document.getElementById("btnToggleMode").addEventListener("click", async () => {
-  if (IS_ADMIN_AUTHENTICATED) {
-    IS_ADMIN_AUTHENTICATED = false;
-    simpanKe(STORAGE_KEYS.isAdmin, false);
-    updateTampilanUI();
-    toast("🚪 Keluar ke Mode Publik");
-    return;
-  }
-
-  // Ubah teks petunjuk input
   const inputPin = prompt("Masukkan Password Admin (kombinasi huruf & angka):");
 
   if (inputPin === null || inputPin.trim() === "") return;
@@ -809,23 +799,6 @@ document.getElementById("btnToggleMode").addEventListener("click", async () => {
   } catch (err) {
     console.error("Gagal verifikasi password:", err);
     alert("⚠️ Gagal terhubung ke server Apps Script. Pastikan URL deployment terbaru sudah dipasang.");
-  }
-});
-
-    const result = await response.json();
-
-    if (result.success || result.status === "success") {
-      IS_ADMIN_AUTHENTICATED = true;
-      simpanKe(STORAGE_KEYS.isAdmin, true);
-      updateTampilanUI();
-      toast("🔑 Akses Diterima! Masuk Mode Admin");
-    } else {
-      alert("❌ PIN / Password Salah!");
-      toast("⚠️ Akses Ditolak");
-    }
-  } catch (err) {
-    console.error("Gagal verifikasi PIN:", err);
-    alert("⚠️ Gagal terhubung ke server Apps Script. Periksa koneksi internet Anda.");
   }
 });
 
