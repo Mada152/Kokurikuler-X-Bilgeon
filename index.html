@@ -296,7 +296,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwELYqQagvtoRTaOs5EN1tAQ1scaPeAX8hMMrI6zDpt3MU5SVP5O_Tk0iF0m_u94RKImQ/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw5Ahw_sPjuch3tQxPt-iyVxkP608Z9KgrhZsJo115zu8Chf7wwARZnkwcOx5Hh41dFWQ/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -755,6 +755,7 @@ function terapkanModeTampilan(){
   renderTabel();
 }
 
+JavaScript
 document.getElementById("btnToggleMode").addEventListener("click", async () => {
   if (IS_ADMIN_AUTHENTICATED) {
     IS_ADMIN_AUTHENTICATED = false;
@@ -765,7 +766,6 @@ document.getElementById("btnToggleMode").addEventListener("click", async () => {
   }
 
   const inputPin = prompt("Masukkan Password Admin (kombinasi huruf & angka):");
-
   if (inputPin === null || inputPin.trim() === "") return;
 
   if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.trim() === "") {
@@ -776,13 +776,14 @@ document.getElementById("btnToggleMode").addEventListener("click", async () => {
   toast("⏳ Memverifikasi Password...");
 
   try {
+    // Menggunakan URLSearchParams agar tidak kena blokir CORS Google
+    const bodyData = new URLSearchParams();
+    bodyData.append("action", "VERIFIKASI_PIN");
+    bodyData.append("pin", String(inputPin).trim());
+
     const response = await fetch(GOOGLE_SCRIPT_URL, {
       method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        action: "VERIFIKASI_PIN",
-        pin: String(inputPin).trim()
-      })
+      body: bodyData
     });
 
     const result = await response.json();
@@ -793,15 +794,15 @@ document.getElementById("btnToggleMode").addEventListener("click", async () => {
       updateTampilanUI();
       toast("🔑 Akses Diterima! Masuk Mode Admin");
     } else {
-      alert("❌ Password Salah!");
+      alert("❌ Password Salah! (Pastikan isi A2 di tab Admin sesuai)");
       toast("⚠️ Akses Ditolak");
     }
   } catch (err) {
     console.error("Gagal verifikasi password:", err);
-    alert("⚠️ Gagal terhubung ke server Apps Script. Pastikan URL deployment terbaru sudah dipasang.");
+    alert("⚠️ Gagal terhubung ke server Apps Script. Cek koneksi atau URL Apps Script.");
   }
 });
-
+  
 function updateTampilanUI() {
   const kolomKiri = document.getElementById('kolomKiri');
   const kolomTabel = document.getElementById('kolomTabel');
