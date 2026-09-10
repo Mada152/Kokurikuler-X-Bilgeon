@@ -296,7 +296,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyZ_o8YlK2Yh3Q6HGrBuNL2naG9hPmSFZtpEwfXVOvq_pmOmqHV9tJUHqD-o3_UtLVFmg/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzZ687915aRebItUYGVCtEg40u6tnFm0zqxNFF18WzUpVzaqO-jrRyU4hLiRg-QfEjfhw/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -764,16 +764,26 @@ document.getElementById("btnToggleMode").addEventListener("click", async () => {
     return;
   }
 
-  const inputPin = prompt("Masukkan PIN / Password Admin:");
+ document.getElementById("btnToggleMode").addEventListener("click", async () => {
+  if (IS_ADMIN_AUTHENTICATED) {
+    IS_ADMIN_AUTHENTICATED = false;
+    simpanKe(STORAGE_KEYS.isAdmin, false);
+    updateTampilanUI();
+    toast("🚪 Keluar ke Mode Publik");
+    return;
+  }
+
+  // Ubah teks petunjuk input
+  const inputPin = prompt("Masukkan Password Admin (kombinasi huruf & angka):");
 
   if (inputPin === null || inputPin.trim() === "") return;
 
-  if (!GOOGLE_SCRIPT_URL) {
+  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.trim() === "") {
     alert("⚠️ URL Apps Script belum diatur.");
     return;
   }
 
-  toast("⏳ Memverifikasi PIN...");
+  toast("⏳ Memverifikasi Password...");
 
   try {
     const response = await fetch(GOOGLE_SCRIPT_URL, {
@@ -781,9 +791,26 @@ document.getElementById("btnToggleMode").addEventListener("click", async () => {
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
         action: "VERIFIKASI_PIN",
-        pin: inputPin.trim()
+        pin: String(inputPin).trim()
       })
     });
+
+    const result = await response.json();
+
+    if (result.success === true || result.status === "success") {
+      IS_ADMIN_AUTHENTICATED = true;
+      simpanKe(STORAGE_KEYS.isAdmin, true);
+      updateTampilanUI();
+      toast("🔑 Akses Diterima! Masuk Mode Admin");
+    } else {
+      alert("❌ Password Salah!");
+      toast("⚠️ Akses Ditolak");
+    }
+  } catch (err) {
+    console.error("Gagal verifikasi password:", err);
+    alert("⚠️ Gagal terhubung ke server Apps Script. Pastikan URL deployment terbaru sudah dipasang.");
+  }
+});
 
     const result = await response.json();
 
