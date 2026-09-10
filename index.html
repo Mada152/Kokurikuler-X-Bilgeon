@@ -474,7 +474,10 @@ function muatSemuaData(){
       })
       .catch(err => {
         console.warn("Menggunakan data cache lokal:", err);
+        renderTabel();
       });
+  } else {
+    renderTabel();
   }
 }
 
@@ -589,6 +592,8 @@ function renderDaftarSiswaKelas(){
   const kelas = document.getElementById("siswaFilterKelas").value;
   const wrap = document.getElementById("daftarSiswaKelas");
   
+  if(!kelas) return;
+
   const kelasClean = kelas.replace(/\s+/g, '').toLowerCase();
   const daftar = state.siswa.filter(s => {
     if(!s.kelas) return false;
@@ -755,7 +760,6 @@ function terapkanModeTampilan(){
   renderTabel();
 }
 
-JavaScript
 document.getElementById("btnToggleMode").addEventListener("click", async () => {
   if (IS_ADMIN_AUTHENTICATED) {
     IS_ADMIN_AUTHENTICATED = false;
@@ -776,7 +780,6 @@ document.getElementById("btnToggleMode").addEventListener("click", async () => {
   toast("⏳ Memverifikasi Password...");
 
   try {
-    // Menggunakan URLSearchParams agar tidak kena blokir CORS Google
     const bodyData = new URLSearchParams();
     bodyData.append("action", "VERIFIKASI_PIN");
     bodyData.append("pin", String(inputPin).trim());
