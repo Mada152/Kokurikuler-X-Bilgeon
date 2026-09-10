@@ -296,7 +296,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw5Ahw_sPjuch3tQxPt-iyVxkP608Z9KgrhZsJo115zu8Chf7wwARZnkwcOx5Hh41dFWQ/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxB4DPA14JO650YkmB7LG9TCzRJulkK7tO5zmuQSnZ-zHSAAf5JV1G60Kd8S2DaCt53xg/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -397,9 +397,21 @@ function formatTanggal(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${p
 function formatJam(d){ return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function getNamaHari(d){ return HARI_INDO[d.getDay()]; }
 
+// DIBERSIHKAN: Mengeliminasi teks Wed, GMT, 00:00:00
 function formatTanggalTampil(iso){
   if(!iso || iso === "undefined" || iso === null) return "-";
   let str = String(iso).trim();
+  
+  if (str.includes("GM") || str.includes("GMT") || /[a-zA-Z]/.test(str)) {
+    let d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      let dd = String(d.getDate()).padStart(2, '0');
+      let mm = String(d.getMonth() + 1).padStart(2, '0');
+      let yyyy = d.getFullYear();
+      return `${dd}-${mm}-${yyyy}`;
+    }
+  }
+
   if(str.includes("T")) str = str.split("T")[0];
   
   const p = str.split("-");
@@ -769,7 +781,7 @@ document.getElementById("btnToggleMode").addEventListener("click", async () => {
     return;
   }
 
-  const inputPin = prompt("Masukkan Password Admin (kombinasi huruf & angka):");
+  const inputPin = prompt("Masukkan Password Admin:");
   if (inputPin === null || inputPin.trim() === "") return;
 
   if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.trim() === "") {
@@ -797,12 +809,12 @@ document.getElementById("btnToggleMode").addEventListener("click", async () => {
       updateTampilanUI();
       toast("🔑 Akses Diterima! Masuk Mode Admin");
     } else {
-      alert("❌ Password Salah! (Pastikan sesuai)");
+      alert("❌ Password Salah!");
       toast("⚠️ Akses Ditolak");
     }
   } catch (err) {
     console.error("Gagal verifikasi password:", err);
-    alert("⚠️ Gagal terhubung ke server Apps Script. Cek koneksi atau URL Apps Script.");
+    alert("⚠️ Gagal terhubung ke server Apps Script.");
   }
 });
   
