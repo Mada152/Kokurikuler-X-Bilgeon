@@ -296,7 +296,7 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxB4DPA14JO650YkmB7LG9TCzRJulkK7tO5zmuQSnZ-zHSAAf5JV1G60Kd8S2DaCt53xg/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz9uKxrkMrorj8xLW-lQ6DBdDfk5Qjc_6DyhUyjlqv6HLdwAlgrsPsW2mZmMzrU6eGIDQ/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -647,41 +647,62 @@ function renderDaftarSiswaKelas(){
   });
 }
 
-function renderDropdownPeriode(){
+// Render Dropdown Pilihan Periode dari Data Server
+function renderDropdownPeriode() {
   const sel = document.getElementById("pilihPeriode");
-  sel.innerHTML = `<option value="">— (Aktif) ${state.periodeAktifLabel} —</option>` +
-    state.arsip.slice().reverse().map(a=>`<option value="${a.label}">${a.label}</option>`).join("");
-  sel.value = state.viewArsipLabel || "";
-}
-
-function dataSumberTabel(){
-  if(state.viewArsipLabel){
-    const arsip = state.arsip.find(a=>a.label===state.viewArsipLabel);
-    return arsip ? arsip.data : [];
+  
+  // Mengambil daftar unik periode dari seluruh data kunjungan
+  const daftarPeriodeAksen = [...new Set(state.kunjunganAktif.map(item => item.periode).filter(Boolean))];
+  
+  if (!daftarPeriodeAksen.includes(state.periodeAktifLabel)) {
+    daftarPeriodeAksen.push(state.periodeAktifLabel);
   }
-  return state.kunjunganAktif;
+
+  sel.innerHTML = daftarPeriodeAksen.map(p => {
+    const isAktif = (p === state.periodeAktifLabel);
+    return `<option value="${p}">${p} ${isAktif ? "(Periode Aktif)" : "(Arsip)"}</option>`;
+  }).join("");
+
+  sel.value = state.viewArsipLabel || state.periodeAktifLabel;
 }
 
-function renderTabel(){
-  const sumber = dataSumberTabel();
-  const cari = document.getElementById("filterCari").value.trim().toLowerCase();
-  const filterKelas = document.getElementById("filterKelas").value;
-  const dari = document.getElementById("filterDari").value;
-  const sampai = document.getElementById("filterSampai").value;
-
-  let hasil = sumber.filter(row=>{
-    let rawTgl = String(row.tanggal || "");
-    if(rawTgl.includes("T")) rawTgl = rawTgl.split("T")[0];
-
-    if(filterKelas && row.kelas !== filterKelas) return false;
-    if(dari && rawTgl < dari) return false;
-    if(sampai && rawTgl > sampai) return false;
-    if(cari){
-      const gabung = `${row.nama} ${row.keluhan} ${row.penanganan || ""} ${row.kelas}`.toLowerCase();
-      if(!gabung.includes(cari)) return false;
-    }
-    return true;
+// Mengambil Data Kunjungan yang Disaring Berdasarkan Periode Terpilih
+function dataSumberTabel() {
+  const periodeTerpilih = state.viewArsipLabel || state.periodeAktifLabel;
+  return state.kunjunganAktif.filter(item => {
+    // Jika data lama belum ada kolom periode, default-kan ke periode aktif
+    const p = item.periode || state.periodeAktifLabel;
+    return p === periodeTerpilih;
   });
+}
+
+// Logika Ganti Periode saat Dropdown Diklik
+document.getElementById("pilihPeriode").addEventListener("change", (e) => {
+  const val = e.target.value;
+  if (val === state.periodeAktifLabel) {
+    state.viewArsipLabel = null;
+  } else {
+    state.viewArsipLabel = val;
+  }
+  terapkanModeTampilan();
+});
+
+// Tombol "Ganti / Buat Periode Baru"
+document.getElementById("btnBekukan").textContent = "➕ Buat / Ganti Periode Baru";
+document.getElementById("btnBekukan").addEventListener("click", () => {
+  const labelInput = prompt("Masukkan nama Periode baru (contoh: Oktober 2026):", state.periodeAktifLabel);
+  if (!labelInput || !labelInput.trim()) return;
+
+  const labelBaru = labelInput.trim();
+  state.periodeAktifLabel = labelBaru;
+  state.viewArsipLabel = null; // Kembali ke tampilan periode aktif yang baru
+
+  simpanKe(STORAGE_KEYS.periodeLabel, state.periodeAktifLabel);
+
+  renderDropdownPeriode();
+  terapkanModeTampilan();
+  toast(`✨ Berpindah ke periode baru: ${labelBaru}`);
+});
 
   hasil = hasil.slice().sort((a,b)=>{
     let tglA = String(a.tanggal || "");
