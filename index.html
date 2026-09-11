@@ -89,15 +89,6 @@
   }
   table tbody td{ padding:.65rem .75rem; font-size:.84rem; vertical-align:top; border-bottom:1px solid rgba(15,84,76,0.08); color:var(--ink); }
   table tbody tr:hover{ background:var(--teal-50); }
-  .stamp{
-    position:absolute; top:1.1rem; right:1.4rem; z-index:20;
-    border:3px solid var(--amber); color:var(--amber);
-    font-family:'JetBrains Mono',monospace; font-weight:800; font-size:.72rem;
-    letter-spacing:.12em; text-transform:uppercase; padding:.4rem .7rem;
-    border-radius:8px; transform:rotate(6deg); opacity:.85;
-    background:rgba(253,240,230,0.6); pointer-events:none;
-    box-shadow:0 0 0 3px rgba(253,240,230,0.55);
-  }
   .clock-pill{
     background:var(--teal-950); color:#eafff9; border-radius:14px;
     padding:.9rem 1.1rem; font-family:'JetBrains Mono',monospace;
@@ -130,7 +121,6 @@
       </div>
     </div>
     <div class="flex items-center gap-3">
-      <div id="periodeBadgeWrap"></div>
       <div class="clock-pill text-right leading-tight">
         <div id="jamBerjalan" class="text-lg font-bold">--:--:--</div>
         <div id="tanggalBerjalan" class="text-[11px] text-teal-100/70">-</div>
@@ -145,12 +135,6 @@
 <main class="max-w-7xl mx-auto px-5 mt-6 grid grid-cols-1 lg:grid-cols-5 gap-5">
 
   <div id="kolomKiri" class="lg:col-span-2 flex flex-col gap-5 hidden">
-    <div id="archiveBanner" class="hidden card p-4 border-amber-300 bg-[var(--amber-soft)] fade-in">
-      <p class="text-sm font-bold text-[var(--amber)]">📁 Sedang menampilkan arsip (mode baca saja)</p>
-      <p class="text-xs text-teal-900/60 mt-1">Formulir kunjungan dinonaktifkan.</p>
-      <button id="btnKembaliAktif" class="btn-primary text-xs px-3 py-1.5 mt-3">← Kembali ke Periode Aktif</button>
-    </div>
-
     <!-- Form Kunjungan -->
     <section class="card p-5">
       <div class="flex items-center gap-2 mb-4">
@@ -211,23 +195,10 @@
       <select id="siswaFilterKelas" class="input-field mb-3"></select>
       <div id="daftarSiswaKelas" class="max-h-56 overflow-y-auto divide-y divide-teal-900/5 rounded-lg border border-teal-900/10"></div>
     </section>
-
-    <!-- Arsip Periode -->
-    <section class="card p-5">
-      <div class="flex items-center gap-2 mb-4">
-        <span class="text-lg">🗄️</span>
-        <h2 class="font-display font-bold text-base">Arsip Periode</h2>
-      </div>
-      <button id="btnBekukan" class="btn-amber w-full py-2.5 text-sm mb-4">➕ Buat / Ganti Periode Baru</button>
-      <label class="label-field" for="pilihPeriode">Lihat Arsip Periode</label>
-      <select id="pilihPeriode" class="input-field"></select>
-    </section>
   </div>
 
   <div id="kolomTabel" class="lg:col-span-5">
     <section class="card p-5 relative overflow-hidden">
-      <div id="stampArsip" class="stamp hidden">Arsip · Baca Saja</div>
-
       <div class="flex items-center gap-2 mb-4">
         <span class="text-lg">📋</span>
         <h2 class="font-display font-bold text-base">Rekam Jejak Kunjungan</h2>
@@ -377,17 +348,12 @@ const HARI_INDO = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
 const STORAGE_KEYS = {
   siswa: "poliklinik_siswa_master",
   kunjunganAktif: "poliklinik_kunjungan_aktif",
-  arsip: "poliklinik_arsip_periode",
-  periodeLabel: "poliklinik_periode_aktif_label",
   isAdmin: "poliklinik_is_admin"
 };
 
 let state = {
   siswa: [],
-  kunjunganAktif: [],
-  arsip: [],
-  periodeAktifLabel: "September 2026",
-  viewArsipLabel: null,
+  kunjunganAktif: []
 };
 
 let IS_ADMIN_AUTHENTICATED = false;
@@ -447,8 +413,6 @@ function ambilDari(key, fallback){
 function muatSemuaData(){
   state.siswa = ambilDari(STORAGE_KEYS.siswa, []);
   state.kunjunganAktif = ambilDari(STORAGE_KEYS.kunjunganAktif, []);
-  state.arsip = ambilDari(STORAGE_KEYS.arsip, []);
-  state.periodeAktifLabel = ambilDari(STORAGE_KEYS.periodeLabel, "September 2026");
   IS_ADMIN_AUTHENTICATED = ambilDari(STORAGE_KEYS.isAdmin, false);
 
   renderDaftarSiswaKelas();
@@ -479,16 +443,13 @@ function muatSemuaData(){
         }
         renderDaftarSiswaKelas();
         renderDropdownSiswaKunjungan();
-        renderDropdownPeriode();
         renderTabel();
       })
       .catch(err => {
         console.warn("Menggunakan data cache lokal:", err);
-        renderDropdownPeriode();
         renderTabel();
       });
   } else {
-    renderDropdownPeriode();
     renderTabel();
   }
 }
@@ -555,15 +516,6 @@ function isiDropdownKelas(selectEl, includeSemua){
     opt.value = k; opt.textContent = k;
     selectEl.appendChild(opt);
   });
-}
-
-function renderBadgePeriode(){
-  const wrap = document.getElementById("periodeBadgeWrap");
-  if(state.viewArsipLabel){
-    wrap.innerHTML = `<span class="badge badge-archive">📁 Arsip ${state.viewArsipLabel}</span>`;
-  } else {
-    wrap.innerHTML = `<span class="badge badge-active">● Aktif — ${state.periodeAktifLabel}</span>`;
-  }
 }
 
 function renderDropdownSiswaKunjungan(){
@@ -647,34 +599,8 @@ function renderDaftarSiswaKelas(){
   });
 }
 
-function renderDropdownPeriode() {
-  const sel = document.getElementById("pilihPeriode");
-  
-  const daftarPeriodeAksen = [...new Set(state.kunjunganAktif.map(item => item.periode).filter(Boolean))];
-  
-  if (!daftarPeriodeAksen.includes(state.periodeAktifLabel)) {
-    daftarPeriodeAksen.push(state.periodeAktifLabel);
-  }
-
-  sel.innerHTML = daftarPeriodeAksen.map(p => {
-    const isAktif = (p === state.periodeAktifLabel);
-    return `<option value="${p}">${p} ${isAktif ? "(Periode Aktif)" : "(Arsip)"}</option>`;
-  }).join("");
-
-  sel.value = state.viewArsipLabel || state.periodeAktifLabel;
-}
-
-function dataSumberTabel() {
-  const periodeTerpilih = state.viewArsipLabel || state.periodeAktifLabel;
-  return state.kunjunganAktif.filter(item => {
-    const p = item.periode || state.periodeAktifLabel;
-    return p === periodeTerpilih;
-  });
-}
-
 function renderTabel() {
-  const modeArsip = !!state.viewArsipLabel;
-  let data = dataSumberTabel();
+  let data = state.kunjunganAktif;
 
   const cari = document.getElementById("filterCari").value.toLowerCase();
   const kelas = document.getElementById("filterKelas").value;
@@ -735,12 +661,12 @@ function renderTabel() {
         <td><span class="font-bold text-teal-950">${row.nama}</span></td>
         <td class="max-w-xs whitespace-pre-wrap text-teal-900/80">${row.keluhan}</td>
         <td class="max-w-xs whitespace-pre-wrap text-teal-900/90 font-medium">${penangananTampil}</td>
-        ${IS_ADMIN_AUTHENTICATED ? `<td>${modeArsip ? "" : `<button data-id="${row.id}" class="btnHapusKunjungan text-rose-500 hover:text-rose-700 text-xs">✕ Hapus</button>`}</td>` : ""}
+        ${IS_ADMIN_AUTHENTICATED ? `<td><button data-id="${row.id}" class="btnHapusKunjungan text-rose-500 hover:text-rose-700 text-xs">✕ Hapus</button></td>` : ""}
       </tr>
     `;
   }).join("");
 
-  if(!modeArsip && IS_ADMIN_AUTHENTICATED){
+  if(IS_ADMIN_AUTHENTICATED){
     tbody.querySelectorAll(".btnHapusKunjungan").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
         const idTarget = btn.dataset.id;
@@ -765,20 +691,6 @@ function renderTabel() {
       });
     });
   }
-}
-
-function terapkanModeTampilan(){
-  const modeArsip = !!state.viewArsipLabel;
-  document.getElementById("archiveBanner").classList.toggle("hidden", !modeArsip);
-  document.getElementById("stampArsip").classList.toggle("hidden", !modeArsip);
-  document.getElementById("btnSimpanKunjungan").disabled = modeArsip;
-  document.getElementById("kunjunganKelas").disabled = modeArsip;
-  document.getElementById("kunjunganSiswa").disabled = modeArsip || !document.getElementById("kunjunganKelas").value;
-  document.getElementById("kunjunganKeluhan").disabled = modeArsip;
-  document.getElementById("kunjunganPenanganan").disabled = modeArsip;
-  document.getElementById("btnBekukan").disabled = modeArsip;
-  renderBadgePeriode();
-  renderTabel();
 }
 
 function updateTampilanUI() {
@@ -817,31 +729,6 @@ function siapkanForm(){
 }
 
 // EVENT LISTENERS
-document.getElementById("pilihPeriode").addEventListener("change", (e) => {
-  const val = e.target.value;
-  if (val === state.periodeAktifLabel) {
-    state.viewArsipLabel = null;
-  } else {
-    state.viewArsipLabel = val;
-  }
-  terapkanModeTampilan();
-});
-
-document.getElementById("btnBekukan").addEventListener("click", () => {
-  const labelInput = prompt("Masukkan nama Periode baru (contoh: Oktober 2026):", state.periodeAktifLabel);
-  if (!labelInput || !labelInput.trim()) return;
-
-  const labelBaru = labelInput.trim();
-  state.periodeAktifLabel = labelBaru;
-  state.viewArsipLabel = null;
-
-  simpanKe(STORAGE_KEYS.periodeLabel, state.periodeAktifLabel);
-
-  renderDropdownPeriode();
-  terapkanModeTampilan();
-  toast(`✨ Berpindah ke periode baru: ${labelBaru}`);
-});
-
 document.getElementById("btnToggleMode").addEventListener("click", async () => {
   if (IS_ADMIN_AUTHENTICATED) {
     IS_ADMIN_AUTHENTICATED = false;
@@ -918,7 +805,6 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
     nama: namaSiswa,
     keluhan: keluhan,
     penanganan: penanganan,
-    periode: state.periodeAktifLabel,
     dicatatPada: now.toISOString()
   };
 
@@ -927,7 +813,6 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
   
   document.getElementById("kunjunganKeluhan").value = "";
   document.getElementById("kunjunganPenanganan").value = "";
-  renderDropdownPeriode();
   renderTabel();
   toast(`✅ Kunjungan ${namaSiswa} dicatat.`);
 
@@ -976,12 +861,6 @@ document.getElementById("formSiswa").addEventListener("submit", (e) => {
   }
 });
 
-document.getElementById("btnKembaliAktif").addEventListener("click", () => {
-  state.viewArsipLabel = null;
-  document.getElementById("pilihPeriode").value = state.periodeAktifLabel;
-  terapkanModeTampilan();
-});
-
 document.getElementById("filterCari").addEventListener("input", renderTabel);
 document.getElementById("filterKelas").addEventListener("change", renderTabel);
 document.getElementById("filterDari").addEventListener("change", renderTabel);
@@ -999,7 +878,6 @@ window.addEventListener("DOMContentLoaded", () => {
   siapkanForm();
   muatSemuaData();
   renderDaftarSiswaKelas();
-  terapkanModeTampilan();
   tickJam();
 });
 </script>
