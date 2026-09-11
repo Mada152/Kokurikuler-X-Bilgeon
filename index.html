@@ -218,7 +218,7 @@
         <span class="text-lg">🗄️</span>
         <h2 class="font-display font-bold text-base">Arsip Periode</h2>
       </div>
-      <button id="btnBekukan" class="btn-amber w-full py-2.5 text-sm mb-4">🔒 Bekukan Periode Ini</button>
+      <button id="btnBekukan" class="btn-amber w-full py-2.5 text-sm mb-4">➕ Buat / Ganti Periode Baru</button>
       <label class="label-field" for="pilihPeriode">Lihat Arsip Periode</label>
       <select id="pilihPeriode" class="input-field"></select>
     </section>
@@ -296,211 +296,8 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "// ==========================================
-// PENGATURAN UTAMA
-// ==========================================
-const TIME_ZONE = "Asia/Makassar"; // Zona waktu WITA
-
-// Mengambil Password Admin dari Sel A2 Sheet "Admin"
-function ambilPasswordDariSheet(ss) {
-  let sheetAdmin = ss.getSheetByName("Admin") || ss.getSheets()[0];
-  let val = sheetAdmin.getRange("A2").getValue();
-  return String(val || "").trim();
-}
-
-// Format Tanggal Seragam (YYYY-MM-DD)
-function bersihkanTanggal(val) {
-  if (!val) return "";
-  if (val instanceof Date) {
-    return Utilities.formatDate(val, TIME_ZONE, "yyyy-MM-dd");
-  }
-  let str = String(val).trim();
-  let d = new Date(str);
-  if (!isNaN(d.getTime())) {
-    return Utilities.formatDate(d, TIME_ZONE, "yyyy-MM-dd");
-  }
-  if (str.includes("T")) return str.split("T")[0];
-  return str;
-}
-
-// Format Jam Seragam (HH:mm)
-function bersihkanJam(val) {
-  if (!val) return "";
-  if (val instanceof Date) {
-    return Utilities.formatDate(val, TIME_ZONE, "HH:mm");
-  }
-  let str = String(val).replace(/'/g, '').trim();
-  let match = str.match(/(\d{1,2}):(\d{2})/);
-  if (match) {
-    let h = String(match[1]).padStart(2, '0');
-    let m = String(match[2]).padStart(2, '0');
-    return h + ":" + m;
-  }
-  return str;
-}
-
-// ==========================================
-// FUNGSI UTAMA (GET DATA)
-// ==========================================
-function doGet(e) {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    
-    // 1. Ambil Data Kunjungan
-    let sheetKunjungan = ss.getSheetByName("Kunjungan");
-    let dataKunjungan = [];
-    if (sheetKunjungan) {
-      const rowsKunjungan = sheetKunjungan.getDataRange().getValues();
-      if (rowsKunjungan.length > 1) {
-        dataKunjungan = rowsKunjungan.slice(1).map(r => {
-          return {
-            id: String(r[0] || ''),
-            tanggal: bersihkanTanggal(r[1]),
-            hari: String(r[2] || ''),
-            jam: bersihkanJam(r[3]),
-            jp: String(r[4] || ''),
-            kelas: String(r[5] || ''),
-            nama: String(r[6] || ''),
-            keluhan: String(r[7] || ''),
-            penanganan: String(r[8] || ''),
-            periode: String(r[9] || '').trim() // Kolom J (Indeks 9)
-          };
-        }).filter(item => item.id !== "");
-      }
-    }
-
-    // 2. Ambil Data Siswa
-    let sheetSiswa = ss.getSheetByName("Siswa");
-    let dataSiswa = [];
-    if (sheetSiswa) {
-      const rowsSiswa = sheetSiswa.getDataRange().getValues();
-      if (rowsSiswa.length > 1) {
-        dataSiswa = rowsSiswa.slice(1).map(r => {
-          return {
-            nama: String(r[0] || '').trim(),
-            kelas: String(r[1] || '').trim()
-          };
-        }).filter(item => item.nama !== "" && item.nama.toLowerCase() !== "nama");
-      }
-    }
-
-    return ContentService.createTextOutput(JSON.stringify({
-      status: "success",
-      kunjungan: dataKunjungan,
-      siswa: dataSiswa
-    })).setMimeType(ContentService.MimeType.JSON);
-
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({
-      status: "error",
-      message: err.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-// ==========================================
-// FUNGSI AKSI (POST DATA)
-// ==========================================
-function doPost(e) {
-  try {
-    let data = {};
-    if (e.postData && e.postData.contents) {
-      try {
-        data = JSON.parse(e.postData.contents);
-      } catch (errJson) {
-        data = e.parameter;
-      }
-    } else {
-      data = e.parameter;
-    }
-
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-    // 1. Verifikasi Password Admin
-    if (data.action === "VERIFIKASI_PIN") {
-      const inputUser = String(data.pin || "").trim();
-      const passDariSheet = ambilPasswordDariSheet(ss);
-      const isMatch = (inputUser === passDariSheet);
-      
-      return ContentService.createTextOutput(JSON.stringify({
-        success: isMatch,
-        status: isMatch ? "success" : "failed"
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 2. Tambah Siswa Baru
-    if (data.action === "TAMBAH_SISWA") {
-      let sheetSiswa = ss.getSheetByName("Siswa");
-      if (!sheetSiswa) {
-        sheetSiswa = ss.insertSheet("Siswa");
-        sheetSiswa.appendRow(["Nama", "Kelas"]);
-      }
-      sheetSiswa.appendRow([String(data.nama).trim(), String(data.kelas).trim()]);
-      return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 3. Tambah Kunjungan
-    if (data.action === "TAMBAH_KUNJUNGAN") {
-      let sheetKunjungan = ss.getSheetByName("Kunjungan");
-      if (!sheetKunjungan) {
-        sheetKunjungan = ss.insertSheet("Kunjungan");
-        sheetKunjungan.appendRow(["ID", "Tanggal", "Hari", "Jam", "JP", "Kelas", "Nama", "Keluhan", "Penanganan", "Periode"]);
-      }
-      
-      sheetKunjungan.appendRow([
-        data.id, 
-        data.tanggal, 
-        data.hari, 
-        "'" + String(data.jam), 
-        data.jp, 
-        data.kelas, 
-        data.nama, 
-        data.keluhan, 
-        data.penanganan,
-        data.periode || "" // Disimpan ke Kolom J
-      ]);
-      return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 4. Hapus Siswa
-    if (data.action === "HAPUS_SISWA") {
-      let sheetSiswa = ss.getSheetByName("Siswa");
-      if (sheetSiswa) {
-        const rows = sheetSiswa.getDataRange().getValues();
-        for (let i = 1; i < rows.length; i++) {
-          if (String(rows[i][0]).trim().toLowerCase() === String(data.nama).trim().toLowerCase()) {
-            sheetSiswa.deleteRow(i + 1);
-            break;
-          }
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 5. Hapus Kunjungan
-    if (data.action === "HAPUS_KUNJUNGAN") {
-      let sheetKunjungan = ss.getSheetByName("Kunjungan");
-      if (sheetKunjungan) {
-        const rows = sheetKunjungan.getDataRange().getValues();
-        for (let i = 1; i < rows.length; i++) {
-          if (String(rows[i][0]) === String(data.id)) {
-            sheetKunjungan.deleteRow(i + 1);
-            break;
-          }
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}";
+// MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
+const GOOGLE_SCRIPT_URL = "";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -601,7 +398,6 @@ function formatTanggal(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${p
 function formatJam(d){ return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function getNamaHari(d){ return HARI_INDO[d.getDay()]; }
 
-// DIBERSIHKAN: Mengeliminasi teks Wed, GMT, 00:00:00
 function formatTanggalTampil(iso){
   if(!iso || iso === "undefined" || iso === null) return "-";
   let str = String(iso).trim();
@@ -851,11 +647,9 @@ function renderDaftarSiswaKelas(){
   });
 }
 
-// Render Dropdown Pilihan Periode dari Data Server
 function renderDropdownPeriode() {
   const sel = document.getElementById("pilihPeriode");
   
-  // Mengambil daftar unik periode dari seluruh data kunjungan
   const daftarPeriodeAksen = [...new Set(state.kunjunganAktif.map(item => item.periode).filter(Boolean))];
   
   if (!daftarPeriodeAksen.includes(state.periodeAktifLabel)) {
@@ -870,43 +664,35 @@ function renderDropdownPeriode() {
   sel.value = state.viewArsipLabel || state.periodeAktifLabel;
 }
 
-// Mengambil Data Kunjungan yang Disaring Berdasarkan Periode Terpilih
 function dataSumberTabel() {
   const periodeTerpilih = state.viewArsipLabel || state.periodeAktifLabel;
   return state.kunjunganAktif.filter(item => {
-    // Jika data lama belum ada kolom periode, default-kan ke periode aktif
     const p = item.periode || state.periodeAktifLabel;
     return p === periodeTerpilih;
   });
 }
 
-// Logika Ganti Periode saat Dropdown Diklik
-document.getElementById("pilihPeriode").addEventListener("change", (e) => {
-  const val = e.target.value;
-  if (val === state.periodeAktifLabel) {
-    state.viewArsipLabel = null;
-  } else {
-    state.viewArsipLabel = val;
-  }
-  terapkanModeTampilan();
-});
+function renderTabel() {
+  const modeArsip = !!state.viewArsipLabel;
+  let data = dataSumberTabel();
 
-// Tombol "Ganti / Buat Periode Baru"
-document.getElementById("btnBekukan").textContent = "➕ Buat / Ganti Periode Baru";
-document.getElementById("btnBekukan").addEventListener("click", () => {
-  const labelInput = prompt("Masukkan nama Periode baru (contoh: Oktober 2026):", state.periodeAktifLabel);
-  if (!labelInput || !labelInput.trim()) return;
+  const cari = document.getElementById("filterCari").value.toLowerCase();
+  const kelas = document.getElementById("filterKelas").value;
+  const dari = document.getElementById("filterDari").value;
+  const sampai = document.getElementById("filterSampai").value;
 
-  const labelBaru = labelInput.trim();
-  state.periodeAktifLabel = labelBaru;
-  state.viewArsipLabel = null; // Kembali ke tampilan periode aktif yang baru
+  let hasil = data.filter(item => {
+    const matchCari = !cari || 
+      (item.nama && item.nama.toLowerCase().includes(cari)) ||
+      (item.keluhan && item.keluhan.toLowerCase().includes(cari)) ||
+      (item.penanganan && item.penanganan.toLowerCase().includes(cari));
+    
+    const matchKelas = !kelas || item.kelas === kelas;
+    const matchDari = !dari || item.tanggal >= dari;
+    const matchSampai = !sampai || item.tanggal <= sampai;
 
-  simpanKe(STORAGE_KEYS.periodeLabel, state.periodeAktifLabel);
-
-  renderDropdownPeriode();
-  terapkanModeTampilan();
-  toast(`✨ Berpindah ke periode baru: ${labelBaru}`);
-});
+    return matchCari && matchKelas && matchDari && matchSampai;
+  });
 
   hasil = hasil.slice().sort((a,b)=>{
     let tglA = String(a.tanggal || "");
@@ -928,8 +714,6 @@ document.getElementById("btnBekukan").addEventListener("click", () => {
     return;
   }
   emptyState.classList.add("hidden");
-
-  const modeArsip = !!state.viewArsipLabel;
 
   tbody.innerHTML = hasil.map((row,idx)=>{
     const jamBersih = bersihkanFormatJam(row.jam);
@@ -997,6 +781,67 @@ function terapkanModeTampilan(){
   renderTabel();
 }
 
+function updateTampilanUI() {
+  const kolomKiri = document.getElementById('kolomKiri');
+  const kolomTabel = document.getElementById('kolomTabel');
+  const btnToggle = document.getElementById('btnToggleMode');
+
+  if (!IS_ADMIN_AUTHENTICATED) {
+    if (kolomKiri) kolomKiri.style.display = 'none';
+    if (kolomTabel) {
+      kolomTabel.classList.remove('lg:col-span-3');
+      kolomTabel.classList.add('lg:col-span-5');
+    }
+    if (btnToggle) {
+      btnToggle.innerHTML = '🔑 Mode Admin';
+    }
+  } else {
+    if (kolomKiri) kolomKiri.style.display = 'flex';
+    if (kolomTabel) {
+      kolomTabel.classList.remove('lg:col-span-5');
+      kolomTabel.classList.add('lg:col-span-3');
+    }
+    if (btnToggle) {
+      btnToggle.innerHTML = '🚪 Keluar Admin';
+    }
+  }
+  renderTabel();
+}
+
+function siapkanForm(){
+  isiDropdownKelas(document.getElementById("kunjunganKelas"), false);
+  isiDropdownKelas(document.getElementById("siswaKelas"), false);
+  isiDropdownKelas(document.getElementById("siswaFilterKelas"), false);
+  document.getElementById("siswaFilterKelas").value = DAFTAR_KELAS[0];
+  isiDropdownKelas(document.getElementById("filterKelas"), true);
+}
+
+// EVENT LISTENERS
+document.getElementById("pilihPeriode").addEventListener("change", (e) => {
+  const val = e.target.value;
+  if (val === state.periodeAktifLabel) {
+    state.viewArsipLabel = null;
+  } else {
+    state.viewArsipLabel = val;
+  }
+  terapkanModeTampilan();
+});
+
+document.getElementById("btnBekukan").addEventListener("click", () => {
+  const labelInput = prompt("Masukkan nama Periode baru (contoh: Oktober 2026):", state.periodeAktifLabel);
+  if (!labelInput || !labelInput.trim()) return;
+
+  const labelBaru = labelInput.trim();
+  state.periodeAktifLabel = labelBaru;
+  state.viewArsipLabel = null;
+
+  simpanKe(STORAGE_KEYS.periodeLabel, state.periodeAktifLabel);
+
+  renderDropdownPeriode();
+  terapkanModeTampilan();
+  toast(`✨ Berpindah ke periode baru: ${labelBaru}`);
+});
+
 document.getElementById("btnToggleMode").addEventListener("click", async () => {
   if (IS_ADMIN_AUTHENTICATED) {
     IS_ADMIN_AUTHENTICATED = false;
@@ -1042,41 +887,6 @@ document.getElementById("btnToggleMode").addEventListener("click", async () => {
     alert("⚠️ Gagal terhubung ke server Apps Script.");
   }
 });
-  
-function updateTampilanUI() {
-  const kolomKiri = document.getElementById('kolomKiri');
-  const kolomTabel = document.getElementById('kolomTabel');
-  const btnToggle = document.getElementById('btnToggleMode');
-
-  if (!IS_ADMIN_AUTHENTICATED) {
-    if (kolomKiri) kolomKiri.style.display = 'none';
-    if (kolomTabel) {
-      kolomTabel.classList.remove('lg:col-span-3');
-      kolomTabel.classList.add('lg:col-span-5');
-    }
-    if (btnToggle) {
-      btnToggle.innerHTML = '🔑 Mode Admin';
-    }
-  } else {
-    if (kolomKiri) kolomKiri.style.display = 'flex';
-    if (kolomTabel) {
-      kolomTabel.classList.remove('lg:col-span-5');
-      kolomTabel.classList.add('lg:col-span-3');
-    }
-    if (btnToggle) {
-      btnToggle.innerHTML = '🚪 Keluar Admin';
-    }
-  }
-  renderTabel();
-}
-
-function siapkanForm(){
-  isiDropdownKelas(document.getElementById("kunjunganKelas"), false);
-  isiDropdownKelas(document.getElementById("siswaKelas"), false);
-  isiDropdownKelas(document.getElementById("siswaFilterKelas"), false);
-  document.getElementById("siswaFilterKelas").value = DAFTAR_KELAS[0];
-  isiDropdownKelas(document.getElementById("filterKelas"), true);
-}
 
 document.getElementById("kunjunganKelas").addEventListener("change", renderDropdownSiswaKunjungan);
 document.getElementById("siswaFilterKelas").addEventListener("change", renderDaftarSiswaKelas);
@@ -1165,44 +975,9 @@ document.getElementById("formSiswa").addEventListener("submit", (e) => {
   }
 });
 
-document.getElementById("btnBekukan").addEventListener("click", () => {
-  if (state.kunjunganAktif.length === 0) {
-    toast("⚠️ Tidak ada data kunjungan untuk dibekukan.");
-    return;
-  }
-  const labelInput = prompt("Masukkan Label Periode baru (contoh: Oktober 2026):");
-  if (!labelInput || !labelInput.trim()) return;
-
-  const labelBaru = labelInput.trim();
-  
-  const dibekukan = {
-    label: state.periodeAktifLabel,
-    dibekukanPada: new Date().toISOString(),
-    data: [...state.kunjunganAktif]
-  };
-
-  state.arsip.push(dibekukan);
-  
-  state.kunjunganAktif = [];
-  state.periodeAktifLabel = labelBaru;
-
-  simpanKe(STORAGE_KEYS.arsip, state.arsip);
-  simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
-  simpanKe(STORAGE_KEYS.periodeLabel, state.periodeAktifLabel);
-
-  renderDropdownPeriode();
-  terapkanModeTampilan();
-  toast("🔒 Periode berhasil dibekukan & diisolasi.");
-});
-
-document.getElementById("pilihPeriode").addEventListener("change", (e) => {
-  state.viewArsipLabel = e.target.value || null;
-  terapkanModeTampilan();
-});
-
 document.getElementById("btnKembaliAktif").addEventListener("click", () => {
   state.viewArsipLabel = null;
-  document.getElementById("pilihPeriode").value = "";
+  document.getElementById("pilihPeriode").value = state.periodeAktifLabel;
   terapkanModeTampilan();
 });
 
