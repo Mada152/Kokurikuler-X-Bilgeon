@@ -296,7 +296,211 @@
 <div id="toastWrap"></div>
 
 <script>
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz9uKxrkMrorj8xLW-lQ6DBdDfk5Qjc_6DyhUyjlqv6HLdwAlgrsPsW2mZmMzrU6eGIDQ/exec";
+const GOOGLE_SCRIPT_URL = "// ==========================================
+// PENGATURAN UTAMA
+// ==========================================
+const TIME_ZONE = "Asia/Makassar"; // Zona waktu WITA
+
+// Mengambil Password Admin dari Sel A2 Sheet "Admin"
+function ambilPasswordDariSheet(ss) {
+  let sheetAdmin = ss.getSheetByName("Admin") || ss.getSheets()[0];
+  let val = sheetAdmin.getRange("A2").getValue();
+  return String(val || "").trim();
+}
+
+// Format Tanggal Seragam (YYYY-MM-DD)
+function bersihkanTanggal(val) {
+  if (!val) return "";
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, TIME_ZONE, "yyyy-MM-dd");
+  }
+  let str = String(val).trim();
+  let d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    return Utilities.formatDate(d, TIME_ZONE, "yyyy-MM-dd");
+  }
+  if (str.includes("T")) return str.split("T")[0];
+  return str;
+}
+
+// Format Jam Seragam (HH:mm)
+function bersihkanJam(val) {
+  if (!val) return "";
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, TIME_ZONE, "HH:mm");
+  }
+  let str = String(val).replace(/'/g, '').trim();
+  let match = str.match(/(\d{1,2}):(\d{2})/);
+  if (match) {
+    let h = String(match[1]).padStart(2, '0');
+    let m = String(match[2]).padStart(2, '0');
+    return h + ":" + m;
+  }
+  return str;
+}
+
+// ==========================================
+// FUNGSI UTAMA (GET DATA)
+// ==========================================
+function doGet(e) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    
+    // 1. Ambil Data Kunjungan
+    let sheetKunjungan = ss.getSheetByName("Kunjungan");
+    let dataKunjungan = [];
+    if (sheetKunjungan) {
+      const rowsKunjungan = sheetKunjungan.getDataRange().getValues();
+      if (rowsKunjungan.length > 1) {
+        dataKunjungan = rowsKunjungan.slice(1).map(r => {
+          return {
+            id: String(r[0] || ''),
+            tanggal: bersihkanTanggal(r[1]),
+            hari: String(r[2] || ''),
+            jam: bersihkanJam(r[3]),
+            jp: String(r[4] || ''),
+            kelas: String(r[5] || ''),
+            nama: String(r[6] || ''),
+            keluhan: String(r[7] || ''),
+            penanganan: String(r[8] || ''),
+            periode: String(r[9] || '').trim() // Kolom J (Indeks 9)
+          };
+        }).filter(item => item.id !== "");
+      }
+    }
+
+    // 2. Ambil Data Siswa
+    let sheetSiswa = ss.getSheetByName("Siswa");
+    let dataSiswa = [];
+    if (sheetSiswa) {
+      const rowsSiswa = sheetSiswa.getDataRange().getValues();
+      if (rowsSiswa.length > 1) {
+        dataSiswa = rowsSiswa.slice(1).map(r => {
+          return {
+            nama: String(r[0] || '').trim(),
+            kelas: String(r[1] || '').trim()
+          };
+        }).filter(item => item.nama !== "" && item.nama.toLowerCase() !== "nama");
+      }
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      kunjungan: dataKunjungan,
+      siswa: dataSiswa
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// ==========================================
+// FUNGSI AKSI (POST DATA)
+// ==========================================
+function doPost(e) {
+  try {
+    let data = {};
+    if (e.postData && e.postData.contents) {
+      try {
+        data = JSON.parse(e.postData.contents);
+      } catch (errJson) {
+        data = e.parameter;
+      }
+    } else {
+      data = e.parameter;
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // 1. Verifikasi Password Admin
+    if (data.action === "VERIFIKASI_PIN") {
+      const inputUser = String(data.pin || "").trim();
+      const passDariSheet = ambilPasswordDariSheet(ss);
+      const isMatch = (inputUser === passDariSheet);
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        success: isMatch,
+        status: isMatch ? "success" : "failed"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 2. Tambah Siswa Baru
+    if (data.action === "TAMBAH_SISWA") {
+      let sheetSiswa = ss.getSheetByName("Siswa");
+      if (!sheetSiswa) {
+        sheetSiswa = ss.insertSheet("Siswa");
+        sheetSiswa.appendRow(["Nama", "Kelas"]);
+      }
+      sheetSiswa.appendRow([String(data.nama).trim(), String(data.kelas).trim()]);
+      return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 3. Tambah Kunjungan
+    if (data.action === "TAMBAH_KUNJUNGAN") {
+      let sheetKunjungan = ss.getSheetByName("Kunjungan");
+      if (!sheetKunjungan) {
+        sheetKunjungan = ss.insertSheet("Kunjungan");
+        sheetKunjungan.appendRow(["ID", "Tanggal", "Hari", "Jam", "JP", "Kelas", "Nama", "Keluhan", "Penanganan", "Periode"]);
+      }
+      
+      sheetKunjungan.appendRow([
+        data.id, 
+        data.tanggal, 
+        data.hari, 
+        "'" + String(data.jam), 
+        data.jp, 
+        data.kelas, 
+        data.nama, 
+        data.keluhan, 
+        data.penanganan,
+        data.periode || "" // Disimpan ke Kolom J
+      ]);
+      return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 4. Hapus Siswa
+    if (data.action === "HAPUS_SISWA") {
+      let sheetSiswa = ss.getSheetByName("Siswa");
+      if (sheetSiswa) {
+        const rows = sheetSiswa.getDataRange().getValues();
+        for (let i = 1; i < rows.length; i++) {
+          if (String(rows[i][0]).trim().toLowerCase() === String(data.nama).trim().toLowerCase()) {
+            sheetSiswa.deleteRow(i + 1);
+            break;
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 5. Hapus Kunjungan
+    if (data.action === "HAPUS_KUNJUNGAN") {
+      let sheetKunjungan = ss.getSheetByName("Kunjungan");
+      if (sheetKunjungan) {
+        const rows = sheetKunjungan.getDataRange().getValues();
+        for (let i = 1; i < rows.length; i++) {
+          if (String(rows[i][0]) === String(data.id)) {
+            sheetKunjungan.deleteRow(i + 1);
+            break;
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
