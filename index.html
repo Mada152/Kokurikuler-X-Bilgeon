@@ -296,8 +296,8 @@
 <div id="toastWrap"></div>
 
 <script>
-// MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwH_fb8ObvW993wacHgPv8sU217fP_cdNv_e48VDYHuoMGmJbpbOeUHNzrbijQlp6Gg/exec";
+// URL GOOGLE APPS SCRIPT SINKRON
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxmq4qVaMx8nQljs41b7DvPKOcmhWy9BMWKOVdx2DC3nQFxdqCSBJ35bIlxSOrOMswqow/exec";
 
 const JP_SCHEDULE_DEFAULT = [
   { jp: "Sebelum KBM", mulai: "00:00", selesai: "08:00" },
@@ -466,10 +466,7 @@ function muatSemuaData(){
       .then(data => {
         clearTimeout(timeoutId);
         if (data.kunjungan && Array.isArray(data.kunjungan)) {
-          const archivedIds = new Set(
-            state.arsip.flatMap(a => (a.data || []).map(item => String(item.id)))
-          );
-          state.kunjunganAktif = data.kunjungan.filter(item => !archivedIds.has(String(item.id)));
+          state.kunjunganAktif = data.kunjungan;
           simpanKe(STORAGE_KEYS.kunjunganAktif, state.kunjunganAktif);
         }
         if (data.siswa && Array.isArray(data.siswa) && data.siswa.length > 0) {
@@ -482,13 +479,16 @@ function muatSemuaData(){
         }
         renderDaftarSiswaKelas();
         renderDropdownSiswaKunjungan();
+        renderDropdownPeriode();
         renderTabel();
       })
       .catch(err => {
         console.warn("Menggunakan data cache lokal:", err);
+        renderDropdownPeriode();
         renderTabel();
       });
   } else {
+    renderDropdownPeriode();
     renderTabel();
   }
 }
@@ -927,6 +927,7 @@ document.getElementById("formKunjungan").addEventListener("submit", async (e) =>
   
   document.getElementById("kunjunganKeluhan").value = "";
   document.getElementById("kunjunganPenanganan").value = "";
+  renderDropdownPeriode();
   renderTabel();
   toast(`✅ Kunjungan ${namaSiswa} dicatat.`);
 
@@ -998,7 +999,6 @@ window.addEventListener("DOMContentLoaded", () => {
   siapkanForm();
   muatSemuaData();
   renderDaftarSiswaKelas();
-  renderDropdownPeriode();
   terapkanModeTampilan();
   tickJam();
 });
